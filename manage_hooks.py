@@ -37,12 +37,6 @@ TRAFFIC_HOOK_DEF = {
             "command": f"python3 {TRAFFIC_SCRIPT} Y"
         }
     ],
-    "PostInvocation": [
-        {
-            "type": "command",
-            "command": f"python3 {TRAFFIC_SCRIPT} G"
-        }
-    ],
     "Stop": [
         {
             "type": "command",

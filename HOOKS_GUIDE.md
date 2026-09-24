@@ -53,12 +53,6 @@ When you enable hooks, a single entry is added to `~/.gemini/config/hooks.json`:
         "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py Y"
       }
     ],
-    "PostInvocation": [
-      {
-        "type": "command",
-        "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py G"
-      }
-    ],
     "Stop": [
       {
         "type": "command",
@@ -70,10 +64,10 @@ When you enable hooks, a single entry is added to `~/.gemini/config/hooks.json`:
 ```
 
 ### Lifecycle Mapping:
-1. **`PreInvocation`** (Prompt submitted / Thinking): Calls `traffic.py Y` ➔ **🟡 Yellow LED lights up**.
+1. **`PreInvocation`** (Prompt submitted / Thinking): Calls `traffic.py Y` ➔ **🟡 Yellow LED lights up**. Stays solid throughout all intermediate tool calls.
 2. **`Input Needed`** (Awaiting user reply / Permission): Calls `traffic.py B` ➔ **🚨 Blinking Red LED**.
 3. **`Error / Failure`** (Tool failed or crashed): Calls `traffic.py R` ➔ **🔴 Solid Red LED**.
-4. **`PostInvocation`** / **`Stop`** (Model turn completes): Calls `traffic.py G` ➔ **🟢 Green LED lights up**.
+4. **`Stop`** (Model turn fully completes): Calls `traffic.py G` ➔ **🟢 Green LED lights up**.
 5. **`manage_hooks.py disable`**: Calls `traffic.py O` ➔ **⚫ LEDs turn off**.
 
 ---
