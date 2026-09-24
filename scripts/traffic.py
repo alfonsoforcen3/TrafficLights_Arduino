@@ -93,12 +93,24 @@ def send_via_tcp(char_code):
     except (ConnectionRefusedError, socket.timeout, OSError):
         return False
 
+import serial.tools.list_ports
+
 def find_serial_port():
     override = os.environ.get("TRAFFIC_PORT")
-    if override and os.path.exists(override):
+    if override:
         return override
-    ports = glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.usbmodem*")
-    return ports[0] if ports else None
+    ports = list(serial.tools.list_ports.comports())
+    # 1. Prefer Arduino / CH340 / USB-Serial devices
+    for p in ports:
+        desc = (p.description or "").lower()
+        hwid = (p.hwid or "").lower()
+        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
+            return p.device
+    # 2. Return COM ports on Windows or usb ports on POSIX
+    for p in ports:
+        if p.device.upper().startswith("COM") or "usb" in p.device.lower():
+            return p.device
+    return ports[0].device if ports else None
 
 def send_via_direct_serial(char_code):
     """Direct serial fallback when bridge is not running."""

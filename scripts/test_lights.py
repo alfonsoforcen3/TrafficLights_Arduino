@@ -7,13 +7,21 @@ and provides an interactive prompt to toggle states.
 """
 
 import sys
-import glob
 import time
 import serial
+import serial.tools.list_ports
 
 def find_serial_port():
-    ports = glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.usbmodem*")
-    return ports[0] if ports else None
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        desc = (p.description or "").lower()
+        hwid = (p.hwid or "").lower()
+        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
+            return p.device
+    for p in ports:
+        if p.device.upper().startswith("COM") or "usb" in p.device.lower():
+            return p.device
+    return ports[0].device if ports else None
 
 def main():
     port = find_serial_port()

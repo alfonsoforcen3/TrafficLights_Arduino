@@ -13,13 +13,28 @@ import socket
 import time
 import serial
 
+import serial.tools.list_ports
+
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
 BAUD_RATE = 115200
 
 def find_serial_port():
-    ports = glob.glob("/dev/cu.usbserial*") + glob.glob("/dev/cu.usbmodem*")
-    return ports[0] if ports else None
+    override = os.environ.get("TRAFFIC_PORT")
+    if override:
+        return override
+    ports = list(serial.tools.list_ports.comports())
+    # 1. Prefer Arduino / CH340 / USB-Serial devices
+    for p in ports:
+        desc = (p.description or "").lower()
+        hwid = (p.hwid or "").lower()
+        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
+            return p.device
+    # 2. Return COM ports on Windows or usb ports on POSIX
+    for p in ports:
+        if p.device.upper().startswith("COM") or "usb" in p.device.lower():
+            return p.device
+    return ports[0].device if ports else None
 
 def run_bridge():
     port = find_serial_port()

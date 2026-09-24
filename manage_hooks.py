@@ -140,28 +140,34 @@ def check_status():
     else:
         print(f"⚪ Hook Status: INACTIVE (No {HOOKS_FILE})")
 
-    # 2. Bridge process
+    # 2. Bridge process (test TCP socket directly - works on Windows/Mac/Linux)
     bridge_running = False
     try:
-        out = subprocess.check_output(["ps", "aux"]).decode("utf-8")
-        for line in out.splitlines():
-            if "bridge.py" in line and "grep" not in line:
-                bridge_running = True
-                break
+        import socket
+        test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_sock.settimeout(0.2)
+        test_sock.connect(("127.0.0.1", 8765))
+        test_sock.close()
+        bridge_running = True
     except Exception:
-        pass
+        bridge_running = False
 
     if bridge_running:
         print("🟢 Serial Bridge: RUNNING (0ms latency mode)")
     else:
         print("🟡 Serial Bridge: STOPPED (Operating in direct-serial fallback mode)")
 
-    # 3. Serial Port
-    ports = [p for p in os.listdir("/dev") if p.startswith("cu.usbserial") or p.startswith("cu.usbmodem")]
-    if ports:
-        print(f"🔌 Hardware Port: Connected ({', '.join(['/dev/' + p for p in ports])})")
-    else:
-        print("❌ Hardware Port: No Arduino USB device detected in /dev/cu.*")
+    # 3. Serial Port (Cross-platform)
+    try:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        devs = [p.device for p in ports if p.device.upper().startswith("COM") or "usb" in p.device.lower()]
+        if devs:
+            print(f"🔌 Hardware Port: Connected ({', '.join(devs)})")
+        else:
+            print("❌ Hardware Port: No Arduino USB device detected.")
+    except Exception:
+        print("⚠️  Hardware Port: Could not enumerate serial ports.")
 
 def run_test():
     print("🚦 Running light test cycle...")
