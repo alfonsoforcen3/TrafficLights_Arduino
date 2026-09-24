@@ -134,20 +134,42 @@ def check_status():
     else:
         print(f"⚪ Hook Status: INACTIVE (No {HOOKS_FILE})")
 
-    # 2. Bridge process (test TCP socket directly - works on Windows/Mac/Linux)
+    # 2. Bridge process (query TCP socket directly for multi-session status)
     bridge_running = False
+    bridge_data = None
     try:
         import socket
         test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        test_sock.settimeout(0.2)
+        test_sock.settimeout(0.3)
         test_sock.connect(("127.0.0.1", 8765))
+        test_sock.sendall(json.dumps({"action": "status"}).encode("utf-8"))
+        resp = test_sock.recv(2048).decode("utf-8")
         test_sock.close()
+        bridge_data = json.loads(resp)
         bridge_running = True
     except Exception:
         bridge_running = False
 
     if bridge_running:
-        print("🟢 Serial Bridge: RUNNING (0ms latency mode)")
+        print("🟢 Serial Bridge: RUNNING (0ms latency, multi-session Priority Resolution enabled)")
+        if bridge_data:
+            agg = bridge_data.get("aggregate", "G")
+            state_desc = {
+                "G": "🟢 Solid Green (All Clear / Ready)",
+                "Y": "🟡 Solid Yellow (Working / Thinking)",
+                "B": "🚨 Blinking Red (User Input Required)",
+                "R": "🔴 Solid Red (Error)",
+                "O": "⚫ Off"
+            }.get(agg, agg)
+            print(f"🚦 Hardware State: {state_desc}")
+            sessions = bridge_data.get("active_sessions", {})
+            if sessions:
+                print(f"📋 Active Sessions Tracked ({len(sessions)}):")
+                for sid, s in sessions.items():
+                    state_name = {"Y": "🟡 Working", "G": "🟢 Ready", "B": "🚨 Needs Input", "R": "🔴 Error"}.get(s, s)
+                    print(f"   • {sid[:24]}: {state_name}")
+            else:
+                print("📋 Active Sessions: 0 (Idle Standby)")
     else:
         print("🟡 Serial Bridge: STOPPED (Operating in direct-serial fallback mode)")
 

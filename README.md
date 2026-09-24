@@ -2,13 +2,16 @@
 
 Physical USB traffic light indicator for **Gemini CLI** (and Claude Code), showing your session status at a glance.
 
-| Light | Meaning | Trigger Event (Gemini CLI) |
-| :--- | :--- | :--- |
-| 🚨 **Blinking Red** | **User Input Required / Prompt / Permission** | Interactive Question / Confirmation |
-| 🔴 **Solid Red** | Error / Blocked | Failed Tool / Exception |
-| 🟡 **Solid Yellow** | AI working / Thinking / Executing tools | `BeforeAgent` / `PreInvocation` |
-| 🟢 **Solid Green** | Turn finished / Ready / Standby | `AfterAgent` / `PostInvocation` / `Stop` |
-| ⚫ **Off** | Session closed | `SessionEnd` |
+| Light | Meaning | Priority | Trigger Event |
+| :--- | :--- | :---: | :--- |
+| 🚨 **Blinking Red** | **User Input Required / Permission** | **1 (Highest)** | Interactive Question / Approval |
+| 🔴 **Solid Red** | Error / Blocked | **2** | Failed Tool / Exception |
+| 🟡 **Solid Yellow** | AI working / Thinking / Tools running | **3** | `BeforeAgent` / `PreInvocation` |
+| 🟢 **Solid Green** | All active sessions finished / Standby | **4 (Lowest)** | `Stop` / `AfterAgent` |
+| ⚫ **Off** | All sessions closed | — | `SessionEnd` |
+
+> [!TIP]
+> **Multi-Session Priority Engine**: If you run multiple concurrent CLI sessions or terminal tabs, the bridge tracks all of them in memory. The light reflects the most urgent state across all sessions (e.g. stays Yellow until *every* session finishes; blinks Red if *any* session needs your input).
 
 ---
 

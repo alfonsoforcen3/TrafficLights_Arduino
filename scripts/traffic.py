@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
 """
-traffic.py — Universal CLI Hook handler for Arduino Traffic Light.
+traffic.py — Multi-Session CLI Hook handler for Arduino Traffic Light.
 
-Supports:
-- G = Solid Green (Turn done / Standby)
-- Y = Solid Yellow (Agent working / Thinking)
-- R = Solid Red (Error / Blocked)
-- B = Blinking Red (User Input / Permission Required)
-- O = Off
-- T = Test sequence
+Extracts session context from stdin (conversationId / sessionId)
+and communicates with the background bridge to maintain Priority Resolution across
+all active sessions.
 """
 
 import os
@@ -18,12 +14,12 @@ import json
 import socket
 import datetime
 import serial
+import serial.tools.list_ports
 
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
 BAUD_RATE = 115200
 LOG_FILE = os.path.join(os.path.dirname(__file__), "traffic.log")
-LATCH_FILE = "/tmp/traffic_error_latch"
 
 EVENT_MAP = {
     # Working / Thinking
@@ -80,33 +76,33 @@ def log(msg):
     except Exception:
         pass
 
-def send_via_tcp(char_code):
-    """Sends command to background bridge daemon if running."""
+def send_via_tcp(session_id, char_code):
+    """Sends session-aware state update to background bridge."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.15)
+        sock.settimeout(0.2)
         sock.connect((TCP_HOST, TCP_PORT))
-        sock.sendall(char_code.encode("utf-8"))
-        sock.recv(16)
+        payload = json.dumps({
+            "session_id": str(session_id),
+            "state": char_code
+        })
+        sock.sendall(payload.encode("utf-8"))
+        resp = sock.recv(1024).decode("utf-8", errors="ignore")
         sock.close()
-        return True
+        return True, resp.strip()
     except (ConnectionRefusedError, socket.timeout, OSError):
-        return False
-
-import serial.tools.list_ports
+        return False, None
 
 def find_serial_port():
     override = os.environ.get("TRAFFIC_PORT")
     if override:
         return override
     ports = list(serial.tools.list_ports.comports())
-    # 1. Prefer Arduino / CH340 / USB-Serial devices
     for p in ports:
         desc = (p.description or "").lower()
         hwid = (p.hwid or "").lower()
         if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
             return p.device
-    # 2. Return COM ports on Windows or usb ports on POSIX
     for p in ports:
         if p.device.upper().startswith("COM") or "usb" in p.device.lower():
             return p.device
@@ -133,83 +129,61 @@ def send_via_direct_serial(char_code):
         log(f"Direct serial write error: {e}")
         return False
 
-def resolve_color_code():
+def parse_input():
     arg = sys.argv[1].strip().upper() if len(sys.argv) > 1 else ""
+    session_id = f"proc_{os.getppid()}"
+    parsed_payload = {}
 
-    # Explicit reset command removes the latch
-    if arg in ("RESET", "CLEAR"):
-        if os.path.exists(LATCH_FILE):
-            try:
-                os.remove(LATCH_FILE)
-            except Exception:
-                pass
-        return "G"
-
-    # Explicit Red or Blinking Red command
-    if arg in ("B", "BLINK", "INPUT", "ASK", "NOTIFICATION"):
-        try:
-            with open(LATCH_FILE, "w") as f:
-                f.write("input_required_blinking")
-        except Exception:
-            pass
-        return "B"
-
-    if arg in ("R", "RED", "ERROR"):
-        try:
-            with open(LATCH_FILE, "w") as f:
-                f.write("error_latched")
-        except Exception:
-            pass
-        return "R"
-
-    # If stdin JSON has an error, latch Red
+    # Inspect stdin for session ID and error status
     if not sys.stdin.isatty():
         try:
             stdin_data = sys.stdin.read().strip()
             if stdin_data:
-                parsed = json.loads(stdin_data)
-                err = parsed.get("error")
-                term = parsed.get("terminationReason")
-                if err or term == "error":
-                    try:
-                        with open(LATCH_FILE, "w") as f:
-                            f.write(str(err or term))
-                    except Exception:
-                        pass
-                    return "R"
-                event = parsed.get("hook_event_name") or parsed.get("event") or ""
-                if event.upper() in EVENT_MAP:
-                    return EVENT_MAP[event.upper()]
+                parsed_payload = json.loads(stdin_data)
+                session_id = parsed_payload.get("conversationId") or \
+                             parsed_payload.get("sessionId") or \
+                             parsed_payload.get("session_id") or session_id
         except Exception:
             pass
 
-    # If latch is active, hold latched state
-    if os.path.exists(LATCH_FILE):
-        try:
-            with open(LATCH_FILE, "r") as f:
-                content = f.read()
-            if "blinking" in content or "input" in content:
-                return "B"
-        except Exception:
-            pass
-        return "R"
+    # Determine command/color
+    if arg in ("RESET", "CLEAR"):
+        return session_id, "RESET"
+
+    # Input required trigger
+    if arg in ("B", "BLINK", "INPUT", "ASK", "NOTIFICATION"):
+        return session_id, "B"
+
+    # Error trigger
+    if arg in ("R", "RED", "ERROR"):
+        return session_id, "R"
+
+    # Check stdin payload for error / termination conditions
+    if parsed_payload:
+        err = parsed_payload.get("error")
+        term = parsed_payload.get("terminationReason")
+        if err or term == "error":
+            return session_id, "R"
+        event = parsed_payload.get("hook_event_name") or parsed_payload.get("event") or ""
+        if event.upper() in EVENT_MAP:
+            return session_id, EVENT_MAP[event.upper()]
 
     if arg in EVENT_MAP:
-        return EVENT_MAP[arg]
+        return session_id, EVENT_MAP[arg]
 
-    return "G"
+    return session_id, "G"
 
 def main():
-    color = resolve_color_code()
+    session_id, color = parse_input()
 
-    success = send_via_tcp(color)
+    success, resp = send_via_tcp(session_id, color)
     channel = "bridge"
 
     if not success:
         success = send_via_direct_serial(color)
         channel = "direct_serial"
 
-    log(f"Color: {color} | Success: {success} | Channel: {channel}")
+    log(f"Session: {session_id[:12]} | State: {color} | Success: {success} | Channel: {channel} | Resp: {resp}")
     print("{}")
     sys.exit(0)
 
