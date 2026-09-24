@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "traffic-light": {
+      "SessionStart": [
+        {
+          "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py G"
+        }
+      ],
+      "BeforeAgent": [
+        {
+          "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py Y"
+        }
+      ],
+      "AfterAgent": [
+        {
+          "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py G"
+        }
+      ],
+      "SessionEnd": [
+        {
+          "command": "python3 /Users/alfonsoforcen3/Desktop/TrafficLights_Arduino/scripts/traffic.py O"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+# OS & Temp
+.DS_Store
+.backups/
+*.log
+/bin/
+__pycache__/
+*.pyc
+/tmp/
