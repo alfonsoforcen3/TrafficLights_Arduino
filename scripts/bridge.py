@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-bridge.py — Persistent Multi-Session Serial Bridge Daemon for Arduino Traffic Light.
+bridge.py — Self-Healing Multi-Session Serial Bridge Daemon for Arduino Traffic Light.
 
-Maintains an in-memory session registry for all concurrent AI CLI sessions
-and applies Priority Resolution:
+Features:
+- Self-Healing Hot-Plug: Auto-reconnects when the Arduino USB is unplugged/replugged or moves ports.
+- Multi-Session Priority Resolution:
   1. 🚨 Blinking Red ('B'): If ANY session needs user input/permission
   2. 🔴 Solid Red ('R'):    If ANY session encountered an error
   3. 🟡 Solid Yellow ('Y'): If ANY session is currently working/thinking
   4. 🟢 Solid Green ('G'):  When ALL active sessions are finished/ready
   5. ⚫ Off ('O'):          When all sessions have ended
-
-Listens on TCP 127.0.0.1:8765.
-Accepts JSON commands and status queries.
+- Auto-Decay for Stale Sessions: Sessions stuck in 'Y' without activity for >3 minutes decay to 'G'.
+- Status Query & Reset API over local TCP socket.
 """
 
 import os
@@ -29,21 +29,80 @@ BAUD_RATE = 115200
 # Registry: { session_id: { "state": 'Y'|'G'|'R'|'B'|'O', "updated": timestamp } }
 active_sessions = {}
 current_hardware_state = 'G'
+ser_conn = None
 
 def find_serial_port():
     override = os.environ.get("TRAFFIC_PORT")
     if override:
         return override
     ports = list(serial.tools.list_ports.comports())
+    # 1. Look for known Arduino/CH340/USB-serial chips
     for p in ports:
         desc = (p.description or "").lower()
         hwid = (p.hwid or "").lower()
         if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
             return p.device
+    # 2. Look for COM/usb ports
     for p in ports:
         if p.device.upper().startswith("COM") or "usb" in p.device.lower():
             return p.device
     return ports[0].device if ports else None
+
+def get_or_reconnect_serial():
+    global ser_conn
+    if ser_conn is not None and ser_conn.is_open:
+        return ser_conn
+
+    port = find_serial_port()
+    if not port:
+        return None
+
+    try:
+        print(f"🔌 (Re)connecting to Arduino on {port}...")
+        ser = serial.Serial(port, BAUD_RATE, timeout=1)
+        time.sleep(1.8) # Bootloader delay
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+        ser.write(current_hardware_state.encode("utf-8"))
+        ser.flush()
+        ser_conn = ser
+        print(f"✅ Serial connected successfully on {port}!")
+        return ser_conn
+    except Exception as e:
+        print(f"⚠️ Could not open {port}: {e}", file=sys.stderr)
+        ser_conn = None
+        return None
+
+def write_to_hardware(state_char):
+    global ser_conn, current_hardware_state
+    ser = get_or_reconnect_serial()
+    if not ser:
+        current_hardware_state = state_char
+        return False
+
+    try:
+        ser.write(state_char.encode("utf-8"))
+        ser.flush()
+        current_hardware_state = state_char
+        return True
+    except Exception as e:
+        print(f"⚠️ Serial write failed ({e}). Attempting auto-reconnect...", file=sys.stderr)
+        try:
+            ser.close()
+        except Exception:
+            pass
+        ser_conn = None
+        # Try once to reconnect
+        ser = get_or_reconnect_serial()
+        if ser:
+            try:
+                ser.write(state_char.encode("utf-8"))
+                ser.flush()
+                current_hardware_state = state_char
+                return True
+            except Exception:
+                pass
+        return False
 
 def compute_aggregate_state():
     """Calculates highest-priority state across all tracked sessions."""
@@ -52,52 +111,50 @@ def compute_aggregate_state():
 
     states = [s["state"] for s in active_sessions.values()]
 
-    # 1. Top priority: Any session needs user input/confirmation
     if 'B' in states:
         return 'B'
-    # 2. Second priority: Any session in error state
     if 'R' in states:
         return 'R'
-    # 3. Third priority: Any session working/thinking
     if 'Y' in states:
         return 'Y'
-    # 4. Standby: All active sessions ready
     if 'G' in states:
         return 'G'
 
     return 'O'
 
 def clean_stale_sessions():
-    """Cleans up sessions inactive for over 12 hours."""
+    """
+    Auto-decays stale sessions:
+    - If a session is 'Y' (working) with no activity for >180s (3m), decay to 'G'.
+    - If inactive for >600s (10m), drop from registry.
+    """
     now = time.time()
-    stale = [sid for sid, s in active_sessions.items() if now - s["updated"] > 43200]
-    for sid in stale:
+    to_delete = []
+    for sid, s in active_sessions.items():
+        elapsed = now - s["updated"]
+        if s["state"] == 'Y' and elapsed > 180:
+            s["state"] = 'G'
+            print(f"⏱️ Session '{sid[:12]}' decayed from Yellow to Green (idle for {int(elapsed)}s)")
+        elif elapsed > 600:
+            to_delete.append(sid)
+
+    for sid in to_delete:
         del active_sessions[sid]
 
 def run_bridge():
     global current_hardware_state
-    port = find_serial_port()
-    if not port:
-        print("❌ Error: No Arduino serial port found.", file=sys.stderr)
-        sys.exit(1)
+    print("=" * 60)
+    print("🚦 ARDUINO TRAFFIC LIGHT — SELF-HEALING BRIDGE DAEMON")
+    print("=" * 60)
 
-    print(f"🔌 Connecting to Arduino on {port} at {BAUD_RATE} baud...")
-    try:
-        ser = serial.Serial(port, BAUD_RATE, timeout=1)
-        time.sleep(1.8)
-        if ser.in_waiting:
-            ser.read(ser.in_waiting)
-        ser.write(b'G')
-        current_hardware_state = 'G'
-        print(f"✅ Multi-Session Arduino Bridge READY! Listening on {TCP_HOST}:{TCP_PORT}...")
-    except Exception as e:
-        print(f"❌ Failed to open serial port {port}: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Initial hardware connection attempt
+    get_or_reconnect_serial()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((TCP_HOST, TCP_PORT))
     server.listen(10)
+    print(f"✅ Bridge server listening on {TCP_HOST}:{TCP_PORT}...\n")
 
     try:
         while True:
@@ -111,20 +168,31 @@ def run_bridge():
                 session_id = "default"
                 cmd = "G"
 
-                # Check if payload is JSON query or update
                 if raw_data.startswith("{") and raw_data.endswith("}"):
                     try:
                         payload = json.loads(raw_data)
+
+                        # Status query
                         if payload.get("action") == "status":
-                            # Return detailed session list
+                            clean_stale_sessions()
+                            current_agg = compute_aggregate_state()
                             resp_data = {
                                 "status": "ok",
-                                "aggregate": current_hardware_state,
+                                "aggregate": current_agg,
+                                "hardware_connected": ser_conn is not None and ser_conn.is_open,
                                 "active_sessions": {
                                     sid: s["state"] for sid, s in active_sessions.items()
                                 }
                             }
                             client.sendall(json.dumps(resp_data).encode("utf-8") + b"\n")
+                            client.close()
+                            continue
+
+                        # Reset action
+                        if payload.get("action") in ("reset", "clear"):
+                            active_sessions.clear()
+                            write_to_hardware('G')
+                            client.sendall(b'{"status": "reset_ok"}\n')
                             client.close()
                             continue
 
@@ -152,13 +220,11 @@ def run_bridge():
                 else:
                     new_state = current_hardware_state
 
-                # Update physical hardware if aggregate changed
+                # Update physical hardware if state changed or test requested
                 if new_state != current_hardware_state or cmd == 'T':
-                    ser.write(new_state.encode("utf-8"))
-                    ser.flush()
-                    current_hardware_state = new_state
+                    write_to_hardware(new_state)
                     summary = f"[{new_state}] (Active Sessions: {len(active_sessions)})"
-                    print(f"🚦 Hardware updated ➔ {summary} | Triggered by session '{session_id[:12]}' -> {cmd}")
+                    print(f"🚦 Output ➔ {summary} | Triggered by '{session_id[:12]}' -> {cmd}")
 
                 client.sendall(json.dumps({
                     "status": "ok",
@@ -167,7 +233,7 @@ def run_bridge():
                 }).encode("utf-8") + b"\n")
 
             except Exception as e:
-                print(f"Bridge request error: {e}", file=sys.stderr)
+                print(f"⚠️ Bridge request error: {e}", file=sys.stderr)
             finally:
                 client.close()
 
@@ -175,8 +241,9 @@ def run_bridge():
         print("\nStopping bridge...")
     finally:
         try:
-            ser.write(b'O')
-            ser.close()
+            if ser_conn and ser_conn.is_open:
+                ser_conn.write(b'O')
+                ser_conn.close()
             server.close()
         except Exception:
             pass

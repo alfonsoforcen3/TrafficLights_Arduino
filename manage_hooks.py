@@ -193,6 +193,21 @@ def run_test():
         subprocess.run(["sleep", "1"])
     print("✅ Test cycle complete!")
 
+def reset_sessions():
+    print("🔄 Resetting all tracked sessions to Standby (Green)...")
+    try:
+        import socket
+        test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_sock.settimeout(0.5)
+        test_sock.connect(("127.0.0.1", 8765))
+        test_sock.sendall(b'{"action": "reset"}\n')
+        test_sock.recv(1024)
+        test_sock.close()
+        print("✅ Session registry cleared and light reset to Green.")
+    except Exception:
+        subprocess.run([sys.executable, TRAFFIC_SCRIPT, "G"])
+        print("🟢 Sent Green signal directly.")
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -205,9 +220,13 @@ def main():
         disable_hooks()
     elif cmd == "status":
         check_status()
+    elif cmd in ("reset", "clear"):
+        reset_sessions()
     elif cmd == "test":
         run_test()
     else:
+        print(f"Unknown command: '{cmd}'. Use: enable, disable, status, reset, or test.")
+        sys.exit(1)
         print(f"Unknown command: '{cmd}'. Use: enable, disable, status, or test.")
         sys.exit(1)
 
