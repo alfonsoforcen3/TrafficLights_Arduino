@@ -167,7 +167,16 @@ def clean_stale_sessions():
     for sid in to_delete:
         del active_sessions[sid]
 
+def is_hardware_connected():
+    with ser_lock:
+        return ser_conn is not None and ser_conn.is_open
+
+def get_active_port():
+    with ser_lock:
+        return ser_conn.port if (ser_conn is not None and ser_conn.is_open) else None
+
 def run_bridge():
+    global current_hardware_state, ser_conn, hardware_synced
     print("=" * 60)
     print("🚦 ARDUINO TRAFFIC LIGHT — TRUE PLUG & GO BRIDGE DAEMON")
     print("=" * 60)
@@ -202,14 +211,11 @@ def run_bridge():
                         if payload.get("action") == "status":
                             clean_stale_sessions()
                             current_agg = compute_aggregate_state()
-                            with ser_lock:
-                                is_connected = ser_conn is not None and ser_conn.is_open
-                                active_port = ser_conn.port if is_connected else None
                             resp_data = {
                                 "status": "ok",
                                 "aggregate": current_agg,
-                                "hardware_connected": is_connected,
-                                "port": active_port,
+                                "hardware_connected": is_hardware_connected(),
+                                "port": get_active_port(),
                                 "active_sessions": {
                                     sid: s["state"] for sid, s in active_sessions.items()
                                 }
@@ -256,13 +262,10 @@ def run_bridge():
                     summary = f"[{new_state}] (Active Sessions: {len(active_sessions)})"
                     print(f"🚦 Hardware ➔ {summary} | Triggered by '{session_id[:12]}' -> {cmd}", flush=True)
 
-                with ser_lock:
-                    is_connected = ser_conn is not None and ser_conn.is_open
-
                 client.sendall(json.dumps({
                     "status": "ok",
                     "aggregate": current_hardware_state,
-                    "hardware_connected": is_connected,
+                    "hardware_connected": is_hardware_connected(),
                     "active_sessions": len(active_sessions)
                 }).encode("utf-8") + b"\n")
 
