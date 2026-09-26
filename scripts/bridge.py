@@ -62,19 +62,16 @@ def hardware_watchdog():
     - Detects disconnects and cleans up automatically.
     """
     global ser_conn, hardware_synced
-    print("👀 Hardware Watchdog started. Monitoring for Arduino USB connection...", flush=True)
-
+    last_sync_time = time.time()
     while True:
         with ser_lock:
-            # 1. If currently connected, check if port is still alive
+            # 1. If currently connected, check if port is still alive and send heartbeat
             if ser_conn is not None:
                 port_alive = False
                 try:
                     if os.name == 'nt':
-                        # Windows port existence check
                         port_alive = any(p.device.upper() == ser_conn.port.upper() for p in serial.tools.list_ports.comports())
                     else:
-                        # POSIX file path existence check
                         port_alive = os.path.exists(ser_conn.port)
                 except Exception:
                     port_alive = False
@@ -87,6 +84,28 @@ def hardware_watchdog():
                         pass
                     ser_conn = None
                     hardware_synced = False
+                else:
+                    # Heartbeat: read any reboot message & periodically re-assert state
+                    try:
+                        if ser_conn.in_waiting:
+                            incoming = ser_conn.read(ser_conn.in_waiting)
+                            if b"TRAFFIC_LIGHT_READY" in incoming:
+                                print(f"🔄 Arduino reboot detected! Re-syncing state [{current_hardware_state}]...", flush=True)
+                                ser_conn.write(current_hardware_state.encode("utf-8"))
+                                ser_conn.flush()
+                        now = time.time()
+                        if now - last_sync_time >= 3.0:
+                            ser_conn.write(current_hardware_state.encode("utf-8"))
+                            ser_conn.flush()
+                            last_sync_time = now
+                    except Exception as e:
+                        print(f"⚠️ Connection dropped ({e}). Watchdog will reconnect.", flush=True)
+                        try:
+                            ser_conn.close()
+                        except Exception:
+                            pass
+                        ser_conn = None
+                        hardware_synced = False
 
             # 2. If not connected, scan and connect
             if ser_conn is None:
@@ -104,9 +123,9 @@ def hardware_watchdog():
                         ser.flush()
                         ser_conn = ser
                         hardware_synced = True
+                        last_sync_time = time.time()
                         print(f"✅ Plug & Go Ready: Connected to {port} and synced state [{current_hardware_state}]!", flush=True)
                     except Exception as e:
-                        # Port might still be enumerating by OS
                         ser_conn = None
                         hardware_synced = False
 
