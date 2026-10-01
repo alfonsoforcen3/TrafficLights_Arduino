@@ -6,7 +6,7 @@ A Bluetooth desk light for your local AI agents. See when work is running, when 
 
 **macOS tester preview** · nRF52840 hardware · Multiple chats and providers · Local status only
 
-[Set up your light](INSTALL.md) · [Provider integrations](docs/PROVIDERS.md) · [Documentation](docs/README.md) · [Release readiness](docs/RELEASE_READINESS.md)
+[Public customer setup](https://github.com/alfonsoforcen3/TrafficLights_Setup) · [Maintainer/tester installation](INSTALL.md) · [Provider integrations](docs/PROVIDERS.md) · [Documentation](docs/README.md) · [Release readiness](docs/RELEASE_READINESS.md)
 
 ## One light, all your tracked chats
 
@@ -20,6 +20,8 @@ A Bluetooth desk light for your local AI agents. See when work is running, when 
 Each chat has a separate provider/session record. The shared light prioritizes **input → error → working → ready**. Finishing one chat leaves the light amber while another is working. Green settles for 1.5 seconds after completion; brief input signals are filtered for 0.8 seconds. [How multiple chats work →](docs/MULTIPLE_CHATS.md)
 
 ## Set up a pre-flashed light
+
+The source workflow below requires authorized access to this private repository. Customer documentation lives in [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup); a standalone signed consumer installer is still pending.
 
 Boards should ship wired, flashed, tested, and labelled with their Bluetooth name. Customers install the Mac companion and approve local access; routine operation needs no USB data connection.
 

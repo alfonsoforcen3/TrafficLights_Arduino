@@ -96,3 +96,7 @@ Run the full installer if hooks changed; review them again. Roll back through Gi
 ## Provider discovery
 
 The default installer detects supported local tools and installs their adapters. Preview with `python3 scripts/provider_setup.py --detect`; restrict with `python3 install.py --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).
+
+## Source access and consumer packaging
+
+This is the private maintainer/invited-tester source workflow. Cloning requires authorized GitHub access. Public customer documentation is https://github.com/alfonsoforcen3/TrafficLights_Setup. A standalone signed/notarized consumer installer has not been released yet; public documentation alone cannot install this implementation.

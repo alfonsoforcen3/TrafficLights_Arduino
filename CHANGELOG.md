@@ -37,3 +37,5 @@ Release documentation: consolidated multi-chat priority, completion/input settli
 - Added hardware-free CI, local documentation-link validation, issue/PR templates and security/contribution guidance.
 - Documented production release gates and OpenCode/Windsurf integration candidates without claiming unsupported applications work.
 - Owner selected private implementation plus public setup/docs and a signed Mac installer. Existing public copies cannot be recalled; the current alias helper is not a standalone signed consumer package. Commercial packaging and terms remain release work.
+
+Repository separation verified: TrafficLights_Arduino visibility is private; TrafficLights_Setup was created public with a fresh documentation-only history. Source history preserved and backed up locally. No standalone consumer installer is published.

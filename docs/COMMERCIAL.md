@@ -11,6 +11,10 @@ The owner selected **private implementation, public setup/docs, and a signed Mac
 
 The current py2app alias helper is a developer runtime, not that standalone installer. Packaging, signing credentials, notarization, updates, installer licensing and third-party notices still need implementation/review. Public setup must explicitly say when no consumer installer is available; never offer a fabricated download.
 
+## Repository separation
+
+The implementation repository TrafficLights_Arduino is private. [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup) is a separate public documentation repository with no source history copied into it. Full implementation history is retained privately and backed up locally. The public repository has no consumer installer download until packaging/signing is complete.
+
 ## What this protects
 
 A private repository prevents ordinary anonymous source browsing and cloning. Signed binaries reduce casual source access and improve installation trust, but are not a guarantee against reverse engineering. Obfuscation adds maintenance and debugging cost; it should not be the main commercial protection for a small local indicator.
