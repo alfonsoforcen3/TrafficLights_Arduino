@@ -1,111 +1,94 @@
-# 🛠️ Installation & Setup Guide
+# Install the macOS Bluetooth build
 
-This guide walks you through setting up the **Arduino Traffic Light** system from scratch on any computer (macOS, Linux, or Windows).
+## 1. Prerequisites
 
----
+- The nRF52840 board described in [hardware](docs/HARDWARE.md), wired with three LED resistors and soldered headers.
+- A USB **data** cable for initial provisioning; Bluetooth for normal commands.
+- macOS with Bluetooth enabled, Git, and Python 3 with `venv` and `pip`. The verified machine uses macOS 26.6.2 and Apple Command Line Tools Python 3.9.6. New Python/macOS combinations need the acceptance tests; they are not automatically verified.
+- A locally orchestrated Codex / ChatGPT Work session. Ordinary ChatGPT chat and cloud orchestration do not execute these local command hooks.
+- Internet access to GitHub (clone/source), downloads.circuitpython.org (UF2), and PyPI/package file hosts (Python dependencies).
 
-## 📋 1. Hardware Requirements
+No OpenAI API key, hosted server, cloud subscription for the bridge, or administrator access to run the service is required. macOS may require user authentication when changing privacy permissions. Obtain Python/Git from their official distribution or Apple Command Line Tools if missing; agents should not silently accept license agreements.
 
-* **1x Arduino Board** (Uno, Nano, or compatible clone with CH340 / FTDI / Atmega16U2).
-* **3x LEDs**: Green, Yellow, Red (5mm standard).
-* **3x Resistors**: 220 Ω to 330 Ω (one for each LED).
-* **1x USB Data Cable** (verify it is a data cable, not charge-only).
-* Breadboard and jumper wires.
+## 2. Clone into a stable directory
 
-### Wiring Diagram
-
-```
-         Arduino (Uno / Nano)
-       ┌────────────────────────┐
-       │          Digital Pin  9 ├──[220Ω]──▶|── Green LED  ──┐
-       │          Digital Pin 10 ├──[220Ω]──▶|── Yellow LED ──┤
-       │          Digital Pin 11 ├──[220Ω]──▶|── Red LED    ──┤
-       │                     GND ├────────────────────────────┘
-       │                        │
-       │   USB-B / Mini / C  ───┼──────►  to Computer
-       └────────────────────────┘
-
-    ▶|  = LED. The anode (longer leg) connects to the resistor/Pin.
-               The cathode (shorter leg, flat edge) connects to GND.
-```
-
----
-
-## 💻 2. Software Prerequisites
-
-### A. Python & PySerial
-Ensure Python 3 is installed, then install `pyserial`:
 ```bash
-pip3 install pyserial
+git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
+cd TrafficLights_Arduino
 ```
 
-### B. Serial Port Access (Linux only)
-If on Linux, ensure your user is in the `dialout` group:
+Keep this directory: hook commands refer to its absolute local path. Read AGENTS.md before changing the user's environment.
+
+**Shipped pre-flashed unit:** power it on and skip to step 4, using the Bluetooth name printed on its label. No USB data connection or flashing is required for normal customer setup.
+
+## 3. Factory / DIY / recovery only: provision the board
+
+Confirm the hardware profile and LED wiring first. Enter the UF2 bootloader by double tapping RESET; the NICENANO volume should appear. Confirm INFO_UF2.TXT contains `Board-ID: nRF52840-nicenano`.
+
 ```bash
-sudo usermod -a -G dialout $USER
+python3 scripts/flash_nicenano.py --boot-drive /Volumes/NICENANO
 ```
 
----
+This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
 
-## ⚡ 3. Flash the Firmware
+If CIRCUITPY already runs the correct profile, update its files without downloading/reflashing:
 
-### Option A: Using the Arduino IDE (Recommended for beginners)
-1. Open the Arduino IDE.
-2. Open [`firmware/traffic_light/traffic_light.ino`](firmware/traffic_light/traffic_light.ino).
-3. Connect your Arduino via USB.
-4. Under **Tools**:
-   * **Board**: Select *Arduino Uno* (or *Arduino Nano*).
-   * **Port**: Select your board's serial port (e.g. `/dev/cu.usbserial-*` on Mac, `/dev/ttyUSB*` on Linux, `COM*` on Windows).
-5. Click **Upload**.
-6. The board will execute an automatic visual startup test (**Red ➔ Yellow ➔ Green ➔ Flash**) confirming that all pins and LEDs are functional.
-
-### Option B: Using `arduino-cli`
 ```bash
-arduino-cli compile --fqbn arduino:avr:uno firmware/traffic_light
-arduino-cli upload -p /dev/cu.usbserial-1120 --fqbn arduino:avr:uno firmware/traffic_light
+python3 scripts/flash_nicenano.py
 ```
 
----
+**Press RESET once or unplug/replug after provisioning**, so boot.py enables the dedicated USB data port. Never disconnect while files are being copied. See [hardware](docs/HARDWARE.md) for sources, checksum, backup and recovery.
 
-## 🚀 4. Start the Background Bridge
+## 4. Install the host bridge and hooks
 
-Standard Arduinos trigger an auto-reset when a new serial connection is opened. The background bridge keeps the USB serial connection open 24/7 so commands execute with **instant (<2ms) response times**.
+For a shipped unit, read the name on its label and run:
 
-Start the bridge:
 ```bash
-python3 scripts/bridge.py
+python3 install.py --ble-name TrafficLight-ABCD
 ```
-To run it continuously in the background:
+
+Replace the example with the actual label. For a developer unit without a label, keep exactly one board connected by USB for first discovery:
+
 ```bash
-nohup python3 scripts/bridge.py > /dev/null 2>&1 &
+python3 install.py
 ```
 
----
+The installer creates an isolated environment under ~/.local/share/trafficlights/venv. It probes the board's `Q` response to learn its own TrafficLight-XXXX name; it never assumes the developer's board name. It installs a locally built Traffic Light Bridge app, a LaunchAgent that runs at **user login**, and eight owned hooks in ~/.codex/hooks.json, preserving unrelated hooks.
 
-## 🚦 5. Verify Hardware
+For an already provisioned board powered elsewhere, supply its exact advertised name:
 
-Run the interactive hardware tester to cycle all LEDs:
 ```bash
-python3 scripts/test_lights.py
+python3 install.py --ble-name TrafficLight-ABCD
 ```
-You can press `R`, `B` (blinking red), `Y`, `G`, `O`, or `T` to toggle the lights manually.
 
----
+For the original wired profile use `--transport serial`. Do not use an Arduino Uno sketch as nRF52840 firmware.
 
-## 🔗 6. Enable Lifecycle Hooks
+Dependencies are pinned in scripts/codex_setup.py: pyserial 3.5, Bleak 0.22.3, py2app 0.28.8, setuptools below 71. Bleak installs PyObjC/CoreBluetooth dependencies. No Arduino CLI or extra CircuitPython board libraries are required for the wireless profile. The local app is an alias build and needs its runtime directory and virtual environment to remain present.
 
-Run the safe hook manager from the project root:
+## 5. Approve the two access gates
+
+1. Allow **Traffic Light Bridge** under macOS System Settings → Privacy & Security → Bluetooth, or accept its expected Bluetooth permission prompt. If macOS requires Touch ID/password, authenticate directly in the OS dialog.
+2. Review/trust the **Traffic light** hooks in Codex using `/hooks` in the CLI. Start a fresh/resumed session after approval as needed. Writing hooks.json does not grant trust.
+
+The repository does not modify TCC privacy databases, fabricate trust hashes, request Full Disk Access, or replace the existing Codex `notify` command.
+
+## 6. Verify before unplugging
+
 ```bash
-./manage_hooks.py enable
+python3 manage_hooks.py status
+python3 scripts/verify_hardware.py
 ```
 
-### To Check Status:
+The status must show BLE connected, a ble:// peer, and a firmware response with transport=ble and the correct GPIO values. The verification command briefly overrides the physical light for testing, then restores the tracked chat state. Have the human confirm all LEDs visibly illuminate. Test a real prompt, completion and approval request as well; synthetic signals alone do not prove hook dispatch.
+
+Move power to a wall USB supply or an approved battery only after the BLE test. Use [battery instructions](docs/BATTERY.md), then perform [power-cycle acceptance](docs/TESTING.md).
+
+## 7. Updates and removal
+
 ```bash
-./manage_hooks.py status
+git pull --ff-only
+python3 scripts/flash_nicenano.py  # USB connected, if firmware changed; reset afterwards
+python3 install.py --no-hooks    # refresh host service without changing approved definitions
 ```
 
-### To Revert / Disable at Any Time:
-```bash
-./manage_hooks.py disable
-```
-*(This completely removes the hook configuration and turns off the light).*
+Run the full installer if hooks changed; review them again. Roll back through Git and the board backup, then reinstall the selected version. Disable using `python3 manage_hooks.py disable`. Runtime dependencies, backups, and board firmware remain; see [hook removal](HOOKS_GUIDE.md).

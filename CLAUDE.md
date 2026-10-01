@@ -1,8 +1,3 @@
-# Claude Code Agent Instructions
+# Agent instructions
 
-When instructed to set up or install this repository:
-1. Run `python install.py` (or `python3 install.py`).
-2. The installer automatically handles dependencies, COM port auto-detection, and bridge initialization.
-3. To disable/uninstall: `python manage_hooks.py disable`.
-
-See [AGENTS.md](AGENTS.md) for full architecture details.
+Read AGENTS.md and INSTALL.md before installing this project. Follow their supported macOS/local Codex workflow and access review requirements. Do not claim that running this installer automatically configures Claude Code hooks; that integration is not currently verified.

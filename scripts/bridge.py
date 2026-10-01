@@ -14,7 +14,7 @@ Features:
   3. 🟡 Solid Yellow ('Y'): If ANY session is currently working/thinking
   4. 🟢 Solid Green ('G'):  When ALL active sessions are finished/ready
   5. ⚫ Off ('O'):          When all sessions have ended
-- Auto-Decay for Stale Sessions: Sessions stuck in 'Y' for >3m decay to 'G'.
+- Abandoned sessions expire after 24 hours; long running turns stay yellow.
 """
 
 import os
@@ -29,6 +29,9 @@ import serial.tools.list_ports
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
 BAUD_RATE = 115200
+TRANSPORT = os.environ.get('TRAFFIC_TRANSPORT', 'serial').lower()
+STATE_FILE = os.path.expanduser(os.environ.get('TRAFFIC_STATE_FILE', '~/.local/share/trafficlights/sessions.json'))
+bluetooth_link = None
 
 # Registry & Hardware state
 active_sessions = {}
@@ -36,23 +39,27 @@ current_hardware_state = 'G'
 hardware_synced = False
 ser_conn = None
 ser_lock = threading.Lock()
+firmware_report = None
 
 def find_serial_port():
     override = os.environ.get("TRAFFIC_PORT")
     if override:
         return override
     ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        if p.vid == 0x239A and p.pid == 0x80B4:
+            return p.device
     # 1. Prefer Arduino / CH340 / USB-Serial devices
     for p in ports:
         desc = (p.description or "").lower()
         hwid = (p.hwid or "").lower()
-        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
+        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc:
             return p.device
     # 2. Look for COM ports on Windows or USB ports on Mac/Linux
     for p in ports:
         if p.device.upper().startswith("COM") or "usb" in p.device.lower():
             return p.device
-    return ports[0].device if ports else None
+    return None
 
 def hardware_watchdog():
     """
@@ -61,8 +68,9 @@ def hardware_watchdog():
     - Waits for bootloader (1.8s) and immediately writes current state.
     - Detects disconnects and cleans up automatically.
     """
-    global ser_conn, hardware_synced
+    global ser_conn, hardware_synced, firmware_report
     last_sync_time = time.time()
+    incoming_buffer = b''
     while True:
         with ser_lock:
             # 1. If currently connected, check if port is still alive and send heartbeat
@@ -84,11 +92,23 @@ def hardware_watchdog():
                         pass
                     ser_conn = None
                     hardware_synced = False
+                    firmware_report = None
                 else:
                     # Heartbeat: read any reboot message & periodically re-assert state
                     try:
-                        if ser_conn.in_waiting:
-                            incoming = ser_conn.read(ser_conn.in_waiting)
+                        # A read also initiates USB CDC transfers on macOS;
+                        # polling in_waiting alone can leave data on the device.
+                        incoming = ser_conn.read(4096)
+                        if incoming:
+                            incoming_buffer += incoming
+                            while b'\n' in incoming_buffer:
+                                line, incoming_buffer = incoming_buffer.split(b'\n', 1)
+                                try:
+                                    report = json.loads(line)
+                                    if report.get('firmware') == 'traffic-nicenano-v1':
+                                        firmware_report = report
+                                except (ValueError, AttributeError):
+                                    pass
                             if b"TRAFFIC_LIGHT_READY" in incoming:
                                 print(f"🔄 Arduino reboot detected! Re-syncing state [{current_hardware_state}]...", flush=True)
                                 ser_conn.write(current_hardware_state.encode("utf-8"))
@@ -106,6 +126,7 @@ def hardware_watchdog():
                             pass
                         ser_conn = None
                         hardware_synced = False
+                        firmware_report = None
 
             # 2. If not connected, scan and connect
             if ser_conn is None:
@@ -113,7 +134,7 @@ def hardware_watchdog():
                 if port:
                     print(f"🔌 Detected Arduino on {port}! Connecting...", flush=True)
                     try:
-                        ser = serial.Serial(port, BAUD_RATE, timeout=1)
+                        ser = serial.Serial(port, BAUD_RATE, timeout=0.05)
                         # Bootloader delay
                         time.sleep(1.8)
                         if ser.in_waiting:
@@ -122,6 +143,7 @@ def hardware_watchdog():
                         ser.write(current_hardware_state.encode("utf-8"))
                         ser.flush()
                         ser_conn = ser
+                        incoming_buffer = b''
                         hardware_synced = True
                         last_sync_time = time.time()
                         print(f"✅ Plug & Go Ready: Connected to {port} and synced state [{current_hardware_state}]!", flush=True)
@@ -133,8 +155,11 @@ def hardware_watchdog():
 
 def write_to_hardware(state_char):
     """Sends a state character to the Arduino (thread-safe)."""
-    global current_hardware_state, hardware_synced
+    global current_hardware_state, hardware_synced, ser_conn
     current_hardware_state = state_char
+    if TRANSPORT == 'ble':
+        hardware_synced = bool(bluetooth_link and bluetooth_link.send(state_char.encode()))
+        return hardware_synced
 
     with ser_lock:
         if ser_conn is not None and ser_conn.is_open:
@@ -171,38 +196,71 @@ def compute_aggregate_state():
 
     return 'O'
 
+def save_sessions():
+    """Persist host state so a login helper restart restores ongoing chats."""
+    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+    temporary = STATE_FILE + '.tmp'
+    with open(temporary, 'w', encoding='utf-8') as file:
+        json.dump(active_sessions, file)
+    os.replace(temporary, STATE_FILE)
+
+def restore_sessions():
+    global current_hardware_state
+    try:
+        with open(STATE_FILE, encoding='utf-8') as file:
+            saved = json.load(file)
+        for sid, session in saved.items():
+            if session.get('state') in ('G', 'Y', 'B', 'R') and time.time() - session['updated'] < 86400:
+                active_sessions[sid] = session
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        pass
+    current_hardware_state = compute_aggregate_state()
+
 def clean_stale_sessions():
-    """Auto-decays stale sessions: >180s without update decays to 'G'."""
+    """Expire abandoned sessions after a day; keep long running turns yellow."""
     now = time.time()
     to_delete = []
     for sid, s in active_sessions.items():
         elapsed = now - s["updated"]
-        if s["state"] == 'Y' and elapsed > 180:
-            s["state"] = 'G'
-            print(f"⏱️ Session '{sid[:12]}' decayed from Yellow to Green (idle for {int(elapsed)}s)", flush=True)
-        elif elapsed > 600:
+        if elapsed > 86400:
             to_delete.append(sid)
 
     for sid in to_delete:
         del active_sessions[sid]
 
 def is_hardware_connected():
+    if TRANSPORT == 'ble':
+        return bool(bluetooth_link and bluetooth_link.connected)
     with ser_lock:
         return ser_conn is not None and ser_conn.is_open
 
 def get_active_port():
+    if TRANSPORT == 'ble':
+        return ('ble://' + bluetooth_link.peer) if is_hardware_connected() else None
     with ser_lock:
         return ser_conn.port if (ser_conn is not None and ser_conn.is_open) else None
 
 def run_bridge():
-    global current_hardware_state, ser_conn, hardware_synced
+    global current_hardware_state, ser_conn, hardware_synced, bluetooth_link
     print("=" * 60)
+
+    restore_sessions()
     print("🚦 ARDUINO TRAFFIC LIGHT — TRUE PLUG & GO BRIDGE DAEMON")
     print("=" * 60)
 
     # Start the hardware watchdog thread
-    watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)
-    watchdog_thread.start()
+    if TRANSPORT == 'ble':
+        from ble_transport import BluetoothLink
+        def received(report):
+            global firmware_report, hardware_synced
+            firmware_report = report
+            hardware_synced = report is not None
+        bluetooth_link = BluetoothLink(os.environ['TRAFFIC_BLE_NAME'],
+                                       lambda: current_hardware_state, received)
+        bluetooth_link.start()
+    else:
+        watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)
+        watchdog_thread.start()
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -235,6 +293,9 @@ def run_bridge():
                                 "aggregate": current_agg,
                                 "hardware_connected": is_hardware_connected(),
                                 "port": get_active_port(),
+                                "transport": TRANSPORT,
+                                "connection_error": bluetooth_link.last_error if bluetooth_link else None,
+                                "firmware_report": firmware_report,
                                 "active_sessions": {
                                     sid: s["state"] for sid, s in active_sessions.items()
                                 }
@@ -244,8 +305,21 @@ def run_bridge():
                             continue
 
                         # Reset action
+                        if payload.get('action') == 'hardware_test':
+                            test_state = payload.get('state')
+                            if test_state not in ('G', 'Y', 'R', 'B', 'O'):
+                                raise ValueError('Invalid hardware test state')
+                            write_to_hardware(test_state)
+                            client.sendall(b'{"status":"test_started"}\n')
+                            continue
+                        if payload.get('action') == 'resume':
+                            write_to_hardware(compute_aggregate_state())
+                            client.sendall(b'{"status":"tracking_restored"}\n')
+                            continue
+
                         if payload.get("action") in ("reset", "clear"):
                             active_sessions.clear()
+                            save_sessions()
                             write_to_hardware('G')
                             client.sendall(b'{"status": "reset_ok"}\n')
                             client.close()
@@ -276,6 +350,7 @@ def run_bridge():
                     new_state = current_hardware_state
 
                 # Update physical hardware if state changed, test requested, or not synced
+                save_sessions()
                 if new_state != current_hardware_state or cmd == 'T' or not hardware_synced:
                     write_to_hardware(new_state)
                     summary = f"[{new_state}] (Active Sessions: {len(active_sessions)})"

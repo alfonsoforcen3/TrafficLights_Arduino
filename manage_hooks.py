@@ -84,6 +84,7 @@ def enable_hooks():
     print("👉 To revert/disable at any time, simply run: python3 manage_hooks.py disable")
 
 def disable_hooks():
+    subprocess.run([sys.executable, os.path.join(SCRIPTS_DIR, "codex_setup.py"), "disable"], check=True)
     print("🛑 Disabling / Reverting Traffic Light Hooks...")
     if not os.path.exists(HOOKS_FILE):
         print(f"ℹ️  No {HOOKS_FILE} found. Hooks are already not active.")
@@ -119,6 +120,14 @@ def disable_hooks():
 
 def check_status():
     print("🔍 --- TRAFFIC LIGHT HOOK STATUS ---")
+    codex_hooks = os.path.expanduser('~/.codex/hooks.json')
+    if os.path.exists(codex_hooks):
+        with open(codex_hooks, encoding='utf-8') as f:
+            hooks = json.load(f).get('hooks', {})
+        count = sum(1 for groups in hooks.values() for group in groups
+                    for hook in group.get('hooks', [])
+                    if hook.get('statusMessage', '').startswith('Traffic light:'))
+        print(f'Codex: {count} traffic light hooks configured (trust must be reviewed in app).')
     
     # 1. Config file
     if os.path.exists(HOOKS_FILE):
@@ -151,7 +160,8 @@ def check_status():
         bridge_running = False
 
     if bridge_running:
-        print("🟢 Serial Bridge: RUNNING (0ms latency, multi-session Priority Resolution enabled)")
+        transport = bridge_data.get('transport', 'serial') if bridge_data else 'serial'
+        print(f"🟢 Bridge: RUNNING ({transport}, multi-session priority enabled)")
         if bridge_data:
             agg = bridge_data.get("aggregate", "G")
             state_desc = {
@@ -162,6 +172,12 @@ def check_status():
                 "O": "⚫ Off"
             }.get(agg, agg)
             print(f"🚦 Hardware State: {state_desc}")
+            print(f"Hardware connected: {bridge_data.get('hardware_connected', False)}")
+            print(f"Connection: {bridge_data.get('port')}")
+            if bridge_data.get('connection_error'):
+                print('Connection issue: ' + bridge_data['connection_error'])
+            if bridge_data.get('firmware_report'):
+                print('Board GPIO report: ' + json.dumps(bridge_data['firmware_report']))
             sessions = bridge_data.get("active_sessions", {})
             if sessions:
                 print(f"📋 Active Sessions Tracked ({len(sessions)}):")
@@ -215,7 +231,7 @@ def main():
 
     cmd = sys.argv[1].lower()
     if cmd == "enable":
-        enable_hooks()
+        subprocess.run([sys.executable, os.path.join(PROJECT_DIR, 'install.py')], check=True)
     elif cmd in ("disable", "revert"):
         disable_hooks()
     elif cmd == "status":

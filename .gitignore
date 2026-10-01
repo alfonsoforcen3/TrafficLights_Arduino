@@ -6,3 +6,10 @@
 __pycache__/
 *.pyc
 /tmp/
+
+# Local generated artifacts and independent checkout
+.venv/
+build/
+dist/
+*.uf2
+claude-mascot-3d/

@@ -30,6 +30,8 @@ EVENT_MAP = {
     "BEFOREMODEL": "Y",
     "USERPROMPTSUBMIT": "Y",
     "BEFORETOOL": "Y",
+    "PRETOOLUSE": "Y",
+    "POSTTOOLUSE": "Y",
 
     # Blinking Red / Input required
     "B": "B",
@@ -40,6 +42,7 @@ EVENT_MAP = {
     "QUESTION": "B",
     "NOTIFICATION": "B",
     "PROMPT_USER": "B",
+    "PERMISSIONREQUEST": "B",
 
     # Solid Red / Error
     "R": "R",
@@ -55,6 +58,7 @@ EVENT_MAP = {
     "STOP": "G",
     "SESSIONSTART": "G",
     "READY": "G",
+    "INTERRUPT": "G",
 
     # Off / Shutdown
     "O": "O",
@@ -101,12 +105,12 @@ def find_serial_port():
     for p in ports:
         desc = (p.description or "").lower()
         hwid = (p.hwid or "").lower()
-        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc or "serial" in desc:
+        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc:
             return p.device
     for p in ports:
         if p.device.upper().startswith("COM") or "usb" in p.device.lower():
             return p.device
-    return ports[0].device if ports else None
+    return None
 
 def send_via_direct_serial(char_code):
     """Direct serial fallback when bridge is not running."""
@@ -165,6 +169,10 @@ def parse_input():
         if err or term == "error":
             return session_id, "R"
         event = parsed_payload.get("hook_event_name") or parsed_payload.get("event") or ""
+        tool = parsed_payload.get('tool_name', '')
+        if event.upper() in ('PRETOOLUSE', 'POSTTOOLUSE') and (
+                'request_user_input' in tool or tool == 'AskUserQuestion'):
+            return session_id, 'B'
         if event.upper() in EVENT_MAP:
             return session_id, EVENT_MAP[event.upper()]
 
