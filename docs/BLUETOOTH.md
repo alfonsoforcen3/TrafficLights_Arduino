@@ -17,3 +17,5 @@ On helper restart, valid recent host sessions are restored from disk. Sessions o
 The locally built Mac helper uses an alias app bundle with a Bluetooth usage description; retain its virtual environment and runtime directory. Do not rebuild/delete the app casually, since changed app identity may trigger permission review. macOS permission and Codex hook trust are independent.
 
 The current BLE service is for nearby indicator control and does not implement encrypted bonding or a physical enrollment button. It does not transmit prompts or credentials; it sends state/GPIO reports. Before commercial distribution, consider enrollment and a longer unique factory ID to prevent cross-device control or naming collisions. No unlimited uptime or battery-life guarantee has been measured.
+
+Bluetooth operations have explicit time limits: scan 15 s, connect 20 s, notification setup 10 s, writes 5 s, and disconnect cleanup 5 s. Failed or timed-out attempts clear the connection and retry; recovery is not instantaneous. A green LED alone does not prove a live host connection.

@@ -40,7 +40,8 @@ class BluetoothLink:
     async def write(self, data):
         if not self.client or not self.client.is_connected:
             raise ConnectionError('Traffic light Bluetooth disconnected')
-        await self.client.write_gatt_char(RX_UUID, data, response=True)
+        await asyncio.wait_for(
+            self.client.write_gatt_char(RX_UUID, data, response=True), timeout=5)
 
     def send(self, data):
         if not self.connected or not self.loop:
@@ -61,9 +62,9 @@ class BluetoothLink:
         while True:
             try:
                 print('Scanning for Bluetooth traffic light ' + self.name, flush=True)
-                device = await BleakScanner.find_device_by_filter(
+                device = await asyncio.wait_for(BleakScanner.find_device_by_filter(
                     lambda d, a: a.local_name == self.name or d.name == self.name,
-                    timeout=10, service_uuids=[SERVICE_UUID])
+                    timeout=10, service_uuids=[SERVICE_UUID]), timeout=15)
                 if not device:
                     self.last_error = 'Board not found; check that it has power'
                     await asyncio.sleep(2)
@@ -71,10 +72,12 @@ class BluetoothLink:
                 def disconnected(client):
                     self.connected = False
                     self.on_report(None)
-                async with BleakClient(device, timeout=15, disconnected_callback=disconnected) as client:
-                    self.client = client
+                client = BleakClient(device, timeout=15, disconnected_callback=disconnected)
+                self.client = client
+                try:
+                    await asyncio.wait_for(client.connect(), timeout=20)
                     self.buffer.clear()
-                    await client.start_notify(TX_UUID, self.notified)
+                    await asyncio.wait_for(client.start_notify(TX_UUID, self.notified), timeout=10)
                     self.peer = device.address
                     self.connected = True
                     self.last_error = None
@@ -82,8 +85,13 @@ class BluetoothLink:
                     while client.is_connected and self.connected:
                         await self.write(self.get_state().encode())
                         await asyncio.sleep(3)
+                finally:
+                    try:
+                        await asyncio.wait_for(client.disconnect(), timeout=5)
+                    except Exception:
+                        pass
             except Exception as error:
-                self.last_error = str(error)
+                self.last_error = str(error) or type(error).__name__
                 print('Bluetooth connection error: ' + str(error), flush=True)
             finally:
                 self.connected = False

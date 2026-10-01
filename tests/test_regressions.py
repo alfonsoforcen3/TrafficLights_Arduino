@@ -71,6 +71,23 @@ class BridgeTests(unittest.TestCase):
                 self.assertEqual(traffic.parse_input(), ('chat',expected))
 
 class BluetoothTests(unittest.TestCase):
+    def test_stalled_write_times_out(self):
+        import asyncio
+        from ble_transport import BluetoothLink
+        class StalledClient:
+            is_connected = True
+            async def write_gatt_char(self, *args, **kwargs):
+                await asyncio.Event().wait()
+        link = BluetoothLink('TrafficLight-TEST', lambda:'Y', lambda report:None)
+        link.client = StalledClient()
+        real_wait = asyncio.wait_for
+        async def shortened_wait(awaitable, timeout):
+            self.assertEqual(timeout, 5)
+            return await real_wait(awaitable, timeout=.01)
+        with patch('ble_transport.asyncio.wait_for', shortened_wait):
+            with self.assertRaises(asyncio.TimeoutError):
+                asyncio.run(link.write(b'Y'))
+
     def test_fragmented_notifications_reassemble_and_ignore_invalid_lines(self):
         from ble_transport import BluetoothLink
         reports = []
