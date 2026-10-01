@@ -13,3 +13,5 @@
 Evidence: user confirmed physical green/amber/red; BLE acknowledgements for R/Y/G/B/O passed; helper restart restored a persisted red session and reconnected to BLE; seven hardware-free regression tests passed. Repeated MCU resets, physical battery switch cycles, battery endurance/charging, clean-user onboarding, and full Mac reboot are not yet established. This is a tester release, not a commercial safety certification.
 
 Follow-up: after the user reported connecting the battery, the running helper connected automatically to TrafficLight-16DE with no Arduino USB device detected. Fresh BLE acknowledgements for R/Y/G/B/O passed and tracking was restored. Physical light confirmation, power-source verification, reconnect timing, and repeated switch cycles remain pending.
+
+Battery follow-up: user confirmed physical operation after automatic BLE reconnect. Supplier listing B0DP18ZVL7 claims lithium charging support; charging current and protection remain unverified. Recorded supplier evidence in docs/BATTERY.md.

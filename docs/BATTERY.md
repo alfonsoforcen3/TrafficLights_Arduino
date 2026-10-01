@@ -31,3 +31,7 @@ Before charging through USB, verify the clone's charger current, lithium chargin
 Do not attach AA/AAA alkaline cells, non-rechargeable cells, multiple cells in series, or a 7.4 V pack to a lithium charging input. Avoid damaged/swollen packs and exposed conductors that can short. Secure the battery without crushing/puncturing it or pressing it against sharp pins.
 
 Battery duration and repeated battery-switch cycles have not been measured on this build. Use docs/TESTING.md to record them; do not infer endurance from keyboard firmware benchmarks.
+
+## Prototype supplier evidence
+
+The purchased board is [Amazon ASIN B0DP18ZVL7](https://www.amazon.ae/dp/B0DP18ZVL7), listed as Generic, model Genericz6347kyngh, compatible with nice!nano v2.0. Its product description claims support for lithium battery charging/discharging. It does not specify the charging IC, programmed current, termination voltage, or protection arrangement. This supports the presence of a charger but does not establish safe charging for the JH 300 mAh pack. Obtain the board schematic/charger details and battery charge rating before approving USB charging. Genuine nice!nano charger specifications must not be substituted for this clone.
