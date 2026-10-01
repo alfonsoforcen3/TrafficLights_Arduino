@@ -232,7 +232,9 @@ def restore_sessions():
             saved = json.load(file)
         for sid, session in saved.items():
             if session.get('state') in ('G', 'Y', 'B', 'R') and time.time() - session['updated'] < 86400:
-                active_sessions[sid] = session
+                # Older versions used bare Codex IDs. Migrate once without losing ongoing turns.
+                key = sid if ":" in sid else "codex:" + sid
+                active_sessions[key] = session
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         pass
     current_hardware_state = compute_aggregate_state()

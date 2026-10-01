@@ -16,3 +16,5 @@ Record OS/Python version, board manufacturer/revision, firmware commit/bootloade
 Hardware-free checks: `~/.local/share/trafficlights/venv/bin/python -m unittest discover -s tests -v` and `git diff --check`. These do not substitute for visual or power tests.
 
 Current evidence: prototype visual colors confirmed by the user; real hooks and BLE GPIO signals verified; helper reconnect verified. Physical battery switching, runtime/charging, clean-customer onboarding and full Mac reboot remain separate acceptance tasks until recorded in CHANGELOG.md.
+
+Provider acceptance: follow docs/PROVIDERS.md for two same-provider chats and mixed-provider chats, verifying real hook dispatch and physical state. Claude/Gemini/Cursor installer and payload tests do not replace this acceptance.

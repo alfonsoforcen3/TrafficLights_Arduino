@@ -129,13 +129,36 @@ def check_status():
                     if hook.get('statusMessage', '').startswith('Traffic light:'))
         print(f'Codex: {count} traffic light hooks configured (trust must be reviewed in app).')
     
+    claude_settings = os.path.expanduser('~/.claude/settings.json')
+    if os.path.exists(claude_settings):
+        with open(claude_settings, encoding='utf-8') as f:
+            settings = json.load(f)
+        count = sum(1 for groups in settings.get('hooks', {}).values() for group in groups
+                    for hook in group.get('hooks', [])
+                    if hook.get('statusMessage', '').startswith('Traffic light: Claude '))
+        print(f'Claude Code: {count} traffic light hooks configured; disabled globally: {bool(settings.get("disableAllHooks"))}.')
+
+    for provider, relative, marker in [('gemini','.gemini/settings.json','trafficlights-gemini-'),
+                                         ('cursor','.cursor/hooks.json','--provider cursor')]:
+        path = os.path.expanduser('~/' + relative)
+        if os.path.exists(path):
+            with open(path, encoding='utf-8') as f:
+                data = json.load(f)
+            if provider == 'cursor':
+                count = sum(1 for hooks in data.get('hooks',{}).values() for hook in hooks
+                            if 'traffic.py' in hook.get('command','') and marker in hook.get('command',''))
+            else:
+                count = sum(1 for groups in data.get('hooks',{}).values() for group in groups
+                            for hook in group.get('hooks',[]) if hook.get('name','').startswith(marker))
+            print(f'{provider}: {count} traffic light hooks configured (runtime policy/trust still applies).')
+
     # 1. Config file
     if os.path.exists(HOOKS_FILE):
         try:
             with open(HOOKS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             if "traffic-light" in data and data["traffic-light"].get("enabled", True):
-                print(f"🟢 Hook Status: ACTIVE in {HOOKS_FILE}")
+                print(f"Legacy Gemini/Antigravity config present in {HOOKS_FILE}; not proof of current Gemini CLI integration.")
             else:
                 print(f"🟡 Hook Status: Config file exists, but 'traffic-light' is disabled/missing.")
         except Exception as e:

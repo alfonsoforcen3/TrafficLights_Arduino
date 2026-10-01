@@ -11,7 +11,7 @@
 | Windows/Linux automatic installation | Not supported by this installer |
 | Arduino Uno/Nano wired sketch | Legacy separate firmware; Bluetooth unavailable |
 | Ordinary ChatGPT chat / cloud-orchestrated Work command hooks | Unsupported |
-| Gemini/Claude hook installation | Legacy examples, not currently verified |
+| Claude Code / Gemini CLI / Cursor adapters | Installer/payload tests pass; real application acceptance pending |
 | Battery charging/runtime / physical repeated off-on cycles | Pending actual battery and board checks |
 | Signed/notarized consumer installer | Not provided; current helper is locally built |
 

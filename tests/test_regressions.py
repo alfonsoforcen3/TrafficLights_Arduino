@@ -20,6 +20,64 @@ def module(name):
     return result
 
 class SetupTests(unittest.TestCase):
+    def test_gemini_and_cursor_merge_and_removal_preserve_unrelated_hooks(self):
+        from scripts import provider_setup
+        for provider in ('gemini','cursor'):
+            with self.subTest(provider=provider), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                settings = root/'settings.json'
+                other = {'command':'other-tool'}
+                hooks = [other] if provider == 'cursor' else [{'hooks':[dict(other,name='other')]}]
+                event = 'stop' if provider == 'cursor' else 'AfterAgent'
+                original = {'version':1,'hooks':{event:hooks}} if provider == 'cursor' else {'theme':'custom','hooks':{event:hooks}}
+                settings.write_text(json.dumps(original))
+                python = root/'venv/bin/python'; python.parent.mkdir(parents=True); python.touch()
+                with patch.object(provider_setup,'settings_path',return_value=settings), patch.object(provider_setup,'RUNTIME',root), patch.object(provider_setup,'ROOT',root):
+                    provider_setup.configure(provider)
+                    first = json.loads(settings.read_text())
+                    provider_setup.configure(provider)
+                    self.assertEqual(json.loads(settings.read_text()),first)
+                    provider_setup.configure(provider,False)
+                    self.assertEqual(json.loads(settings.read_text()),original)
+
+    def test_disabled_gemini_hooks_are_not_overridden(self):
+        from scripts import provider_setup
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'settings.json'
+            original = '{"hooksConfig":{"enabled":false}}'
+            path.write_text(original)
+            with patch.object(provider_setup,'settings_path',return_value=path):
+                with self.assertRaises(RuntimeError): provider_setup.configure('gemini')
+            self.assertEqual(path.read_text(),original)
+
+    def test_detection_uses_executables_and_ignores_empty_gemini_folder(self):
+        from scripts import provider_setup
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root/'.gemini').mkdir()
+            with patch.object(Path,'home',return_value=root), patch.object(provider_setup.shutil,'which',side_effect=lambda name:'/tools/'+name if name in ('claude','cursor-agent') else None):
+                found = provider_setup.detect()
+                self.assertIn('claude',found); self.assertIn('cursor',found)
+                self.assertNotIn('gemini',found)
+
+    def test_claude_install_is_idempotent_and_disable_preserves_other_settings(self):
+        from scripts import claude_setup
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / 'settings.json'
+            other = {'type':'command','command':'other-tool'}
+            original = {'permissions':{'allow':['Read']}, 'hooks':{'Stop':[{'hooks':[other]}]}}
+            settings.write_text(json.dumps(original))
+            python = root / 'venv/bin/python'
+            python.parent.mkdir(parents=True)
+            python.touch()
+            with patch.object(claude_setup,'SETTINGS',settings), patch.object(claude_setup,'RUNTIME',root), patch.object(claude_setup,'ROOT',root):
+                claude_setup.configure(True)
+                first = json.loads(settings.read_text())
+                claude_setup.configure(True)
+                self.assertEqual(json.loads(settings.read_text()), first)
+                claude_setup.configure(False)
+                self.assertEqual(json.loads(settings.read_text()), original)
+
     def test_owned_hook_removal_preserves_other_handlers_in_same_group(self):
         unrelated = {'type': 'command', 'command': 'existing-tool'}
         data = {'hooks': {'Stop': [{'hooks': [unrelated, {'statusMessage': 'Traffic light: Stop'}]}]}}
@@ -44,6 +102,51 @@ class SetupTests(unittest.TestCase):
                 install.discover_name()
 
 class BridgeTests(unittest.TestCase):
+    def test_observer_output_does_not_forward_prompt_or_approve_tools(self):
+        traffic = module('traffic')
+        for provider, flag, event, expected in [('claude','--silent','UserPromptSubmit',''),
+                                                ('cursor','--cursor-prompt','beforeSubmitPrompt','{"continue": true}\n')]:
+            out = io.StringIO()
+            payload = {'session_id':'a','conversation_id':'a','hook_event_name':event,'prompt':'private prompt'}
+            with patch.object(sys,'argv',['traffic.py','Y','--provider',provider,flag]), patch.object(sys,'stdin',io.StringIO(json.dumps(payload))), patch.object(sys,'stdout',out), patch.object(traffic,'send_via_tcp',return_value=(True,'ok')) as send, patch.object(traffic,'log'):
+                with self.assertRaises(SystemExit): traffic.main()
+                send.assert_called_once_with(provider+':a','Y')
+                self.assertEqual(out.getvalue(),expected)
+
+    def test_gemini_and_cursor_payload_mapping(self):
+        traffic = module('traffic')
+        cases = [('gemini',{'session_id':'a','hook_event_name':'BeforeAgent'},'gemini:a','Y'),
+                 ('gemini',{'session_id':'a','hook_event_name':'AfterAgent'},'gemini:a','G'),
+                 ('gemini',{'session_id':'a','hook_event_name':'Notification','notification_type':'ToolPermission'},'gemini:a','B'),
+                 ('gemini',{'session_id':'a','hook_event_name':'Notification','notification_type':'info'},'gemini:a',None),
+                 ('cursor',{'conversation_id':'a','hook_event_name':'beforeSubmitPrompt'},'cursor:a','Y'),
+                 ('cursor',{'conversation_id':'a','hook_event_name':'stop','status':'error'},'cursor:a','R'),
+                 ('cursor',{'conversation_id':'a','hook_event_name':'stop','status':'completed'},'cursor:a','G')]
+        for provider,payload,sid,state in cases:
+            with patch.object(sys,'argv',['traffic.py','--provider',provider]), patch.object(sys,'stdin',io.StringIO(json.dumps(payload))):
+                self.assertEqual(traffic.parse_input(),(sid,state))
+
+    def test_same_chat_id_is_separate_across_providers(self):
+        traffic = module('traffic')
+        results = []
+        for provider in ('codex','claude'):
+            with patch.object(sys,'argv',['traffic.py','Y','--provider',provider]), patch.object(sys,'stdin',io.StringIO('{"session_id":"same","hook_event_name":"UserPromptSubmit"}')):
+                results.append(traffic.parse_input())
+        self.assertEqual(results, [('codex:same','Y'),('claude:same','Y')])
+        bridge = module('bridge')
+        bridge.active_sessions = {sid:{'state':state} for sid,state in results}
+        bridge.active_sessions['claude:same']['state'] = 'G'
+        self.assertEqual(bridge.compute_aggregate_state(),'Y')
+
+    def test_claude_error_and_question_lifecycle(self):
+        traffic = module('traffic')
+        for payload, state in [({'hook_event_name':'StopFailure'},'R'),
+                               ({'hook_event_name':'PostToolUseFailure','error':'command failed'},'Y'),
+                               ({'hook_event_name':'PreToolUse','tool_name':'AskUserQuestion'},'B'),
+                               ({'hook_event_name':'PostToolUse','tool_name':'AskUserQuestion'},'Y')]:
+            with patch.object(sys,'argv',['traffic.py','--provider','claude']), patch.object(sys,'stdin',io.StringIO(json.dumps({'session_id':'chat',**payload}))):
+                self.assertEqual(traffic.parse_input(), ('claude:chat',state))
+
     def test_multiple_chats_follow_priority_without_losing_other_sessions(self):
         bridge = module('bridge')
         for states, expected in [(('Y','G'),'Y'), (('G','Y'),'Y'), (('Y','R'),'R'),
@@ -91,7 +194,7 @@ class BridgeTests(unittest.TestCase):
             bridge.active_sessions = {}
             bridge.restore_sessions()
             self.assertEqual(bridge.current_hardware_state, 'Y')
-            self.assertEqual(list(bridge.active_sessions), ['live'])
+            self.assertEqual(list(bridge.active_sessions), ['codex:live'])
 
     def test_no_board_does_not_select_mac_debug_port(self):
         bridge = module('bridge')
@@ -105,7 +208,7 @@ class BridgeTests(unittest.TestCase):
         for payload, expected in [({'hook_event_name':'PreToolUse','tool_name':'request_user_input_async'},'B'),
                                   ({'hook_event_name':'PostToolUse','error':'test'},'R')]:
             with patch.object(sys, 'argv', ['traffic.py']), patch.object(sys, 'stdin', io.StringIO(json.dumps({'session_id':'chat',**payload}))):
-                self.assertEqual(traffic.parse_input(), ('chat',expected))
+                self.assertEqual(traffic.parse_input(), ('codex:chat',expected))
 
 class BluetoothTests(unittest.TestCase):
     def test_stalled_write_times_out(self):

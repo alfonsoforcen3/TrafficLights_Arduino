@@ -118,6 +118,18 @@ def enable(install_login_service=True):
     print('Review and trust the Traffic light hooks in the app Hooks settings (or CLI /hooks).')
 
 def disable():
+    try:
+        from scripts import claude_setup
+    except ModuleNotFoundError:
+        import claude_setup
+    if claude_setup.SETTINGS.exists():
+        claude_setup.configure(False)
+    try:
+        from scripts import provider_setup
+    except ModuleNotFoundError:
+        import provider_setup
+    for provider in ('gemini', 'cursor'):
+        provider_setup.configure(provider, False)
     data = read_hooks()
     remove_ours(data)
     save(data)
@@ -126,7 +138,7 @@ def disable():
         PLIST.unlink()
     subprocess.run([sys.executable, str(ROOT / 'scripts' / 'traffic.py'), 'O'],
                    stdin=subprocess.DEVNULL)
-    print('Removed Traffic light Codex hooks and login service; other hooks preserved.')
+    print('Removed owned provider hooks and login service; unrelated hooks preserved.')
 
 if __name__ == '__main__':
     if len(sys.argv) == 2 and sys.argv[1] == 'enable':

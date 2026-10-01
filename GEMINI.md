@@ -1,3 +1,3 @@
-# Agent instructions
+# Traffic light agent instructions
 
-Read AGENTS.md and INSTALL.md before installing this project. Follow their supported macOS/local Codex workflow and access review requirements. Do not claim that running this installer automatically configures Gemini hooks; that integration is not currently verified.
+Read AGENTS.md, INSTALL.md and docs/PROVIDERS.md. The installer detects supported local tools and merges their owned hooks while preserving existing configuration. Use --providers to restrict selection; respect workspace trust and disabled hooks. Do not claim live application support solely from installation or synthetic tests.

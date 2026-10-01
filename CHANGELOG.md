@@ -21,3 +21,12 @@ Reconnect follow-up: user reported green during work; host hooks selected amber 
 Display follow-up: added a cancellable 1.5-second completion delay before green and 0.8-second input delay before blinking red; work/error changes remain immediate. Ten regression tests pass, including resumed-work cancellation and suppression of brief input signals. The prior end-of-turn colour sequence was an explicit hardware diagnostic.
 
 Release documentation: consolidated multi-chat priority, completion/input settling, session recovery and integration limits in docs/MULTIPLE_CHATS.md. Eleven regression tests pass, including concurrent-chat priority and preservation of other chats when one ends.
+
+## 2026-10-01 — local provider adapters
+
+- Added automatic discovery and hook installation for supported local Codex, Claude Code, Gemini CLI and Cursor Agent; explicit --providers and --no-hooks remain available.
+- Added provider/session namespaces and migration of older bare Codex IDs, preserving mixed-provider work.
+- Added schema-specific settings merging/backups/removal, correct timeout units, silent Claude observers, Gemini ToolPermission filtering and Cursor lifecycle-only observers. Existing disabled hooks/policies are respected.
+- Installed Claude Code hooks on this Mac without changing approved Codex hook definitions. The installer detects Codex and Claude here; Gemini and Cursor are absent and were not installed.
+- Nineteen hardware-free regressions pass. Synthetic invocation of the installed Claude prompt/Stop/SessionEnd commands alongside this live Codex turn preserved amber and separate session records; BLE GPIO acknowledged Y. No paid model run was started to test Claude.
+- Real Claude/Gemini/Cursor application dispatch and clean-customer installation remain acceptance tasks. Ordinary web AI chats, other apps without adapters and cloud VMs are not automatically tracked. Documented all adapters and extension workflow in docs/PROVIDERS.md.

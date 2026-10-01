@@ -5,7 +5,7 @@
 - The nRF52840 board described in [hardware](docs/HARDWARE.md), wired with three LED resistors and soldered headers.
 - A USB **data** cable for initial provisioning; Bluetooth for normal commands.
 - macOS with Bluetooth enabled, Git, and Python 3 with `venv` and `pip`. The verified machine uses macOS 26.6.2 and Apple Command Line Tools Python 3.9.6. New Python/macOS combinations need the acceptance tests; they are not automatically verified.
-- A locally orchestrated Codex / ChatGPT Work session. Ordinary ChatGPT chat and cloud orchestration do not execute these local command hooks.
+- A supported local AI application: Codex/Work, Claude Code, Gemini CLI or Cursor Agent; see [provider evidence and limits](docs/PROVIDERS.md). Ordinary ChatGPT chat and cloud orchestration do not execute these local command hooks.
 - Internet access to GitHub (clone/source), downloads.circuitpython.org (UF2), and PyPI/package file hosts (Python dependencies).
 
 No OpenAI API key, hosted server, cloud subscription for the bridge, or administrator access to run the service is required. macOS may require user authentication when changing privacy permissions. Obtain Python/Git from their official distribution or Apple Command Line Tools if missing; agents should not silently accept license agreements.
@@ -68,7 +68,7 @@ Dependencies are pinned in scripts/codex_setup.py: pyserial 3.5, Bleak 0.22.3, p
 ## 5. Approve the two access gates
 
 1. Allow **Traffic Light Bridge** under macOS System Settings → Privacy & Security → Bluetooth, or accept its expected Bluetooth permission prompt. If macOS requires Touch ID/password, authenticate directly in the OS dialog.
-2. Review/trust the **Traffic light** hooks in Codex using `/hooks` in the CLI. Start a fresh/resumed session after approval as needed. Writing hooks.json does not grant trust.
+2. Review hooks in each detected provider using its normal hook/trust workflow; see [provider setup](docs/PROVIDERS.md). For Codex use `/hooks` in the CLI. Start a fresh/resumed session after approval as needed. Writing hooks.json does not grant trust.
 
 The repository does not modify TCC privacy databases, fabricate trust hashes, request Full Disk Access, or replace the existing Codex `notify` command.
 
@@ -92,3 +92,7 @@ python3 install.py --no-hooks    # refresh host service without changing approve
 ```
 
 Run the full installer if hooks changed; review them again. Roll back through Git and the board backup, then reinstall the selected version. Disable using `python3 manage_hooks.py disable`. Runtime dependencies, backups, and board firmware remain; see [hook removal](HOOKS_GUIDE.md).
+
+## Provider discovery
+
+The default installer detects supported local tools and installs their adapters. Preview with `python3 scripts/provider_setup.py --detect`; restrict with `python3 install.py --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).

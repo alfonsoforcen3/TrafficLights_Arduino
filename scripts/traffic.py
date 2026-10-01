@@ -8,6 +8,7 @@ all active sessions.
 """
 
 import os
+import argparse
 import sys
 import glob
 import json
@@ -30,8 +31,10 @@ EVENT_MAP = {
     "BEFOREMODEL": "Y",
     "USERPROMPTSUBMIT": "Y",
     "BEFORETOOL": "Y",
+    "AFTERTOOL": "Y",
     "PRETOOLUSE": "Y",
     "POSTTOOLUSE": "Y",
+    "POSTTOOLUSEFAILURE": "Y",
 
     # Blinking Red / Input required
     "B": "B",
@@ -49,6 +52,7 @@ EVENT_MAP = {
     "RED": "R",
     "BLOCKED": "R",
     "ERROR": "R",
+    "STOPFAILURE": "R",
 
     # Green / Standby / Done
     "G": "G",
@@ -133,8 +137,22 @@ def send_via_direct_serial(char_code):
         log(f"Direct serial write error: {e}")
         return False
 
+def options():
+    parser = argparse.ArgumentParser(description='Send a provider/session lifecycle signal to the traffic light.')
+    parser.add_argument('event', nargs='?', default='')
+    parser.add_argument('--provider', default='codex', help='Provider namespace, e.g. codex, claude, custom')
+    parser.add_argument('--session-id', help='Stable chat ID for integrations without JSON stdin')
+    parser.add_argument('--trafficlights-hook', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--cursor-prompt', action='store_true', help='Cursor prompt observer response; never a tool approval')
+    parser.add_argument('--silent', action='store_true', help='Emit no stdout context (Claude command hooks)')
+    args = parser.parse_args()
+    if not args.provider or any(c not in 'abcdefghijklmnopqrstuvwxyz0123456789_-' for c in args.provider):
+        parser.error('provider must contain only lowercase letters, digits, underscores or hyphens')
+    return args
+
 def parse_input():
-    arg = sys.argv[1].strip().upper() if len(sys.argv) > 1 else ""
+    args = options()
+    arg = args.event.strip().upper()
     session_id = f"proc_{os.getppid()}"
     parsed_payload = {}
 
@@ -146,10 +164,20 @@ def parse_input():
                 parsed_payload = json.loads(stdin_data)
                 session_id = parsed_payload.get("conversationId") or \
                              parsed_payload.get("sessionId") or \
+                             parsed_payload.get("conversation_id") or \
                              parsed_payload.get("session_id") or session_id
         except Exception:
             pass
 
+    session_id = args.provider + ':' + str(args.session_id or session_id)
+    event = str(parsed_payload.get('hook_event_name') or parsed_payload.get('event') or '').upper()
+    if args.provider == 'gemini' and event == 'NOTIFICATION':
+        return session_id, 'B' if parsed_payload.get('notification_type') == 'ToolPermission' else None
+    if args.provider == 'cursor':
+        if event == 'STOP':
+            return session_id, 'R' if parsed_payload.get('status') == 'error' else 'G'
+        return session_id, {'BEFORESUBMITPROMPT':'Y','AFTERAGENTTHOUGHT':'Y',
+                            'AFTERAGENTRESPONSE':'Y','SESSIONSTART':'G','SESSIONEND':'O'}.get(event, EVENT_MAP.get(arg, 'Y'))
     # Determine command/color
     if arg in ("RESET", "CLEAR"):
         return session_id, "RESET"
@@ -166,12 +194,15 @@ def parse_input():
     if parsed_payload:
         err = parsed_payload.get("error")
         term = parsed_payload.get("terminationReason")
+        if args.provider == "claude" and parsed_payload.get("hook_event_name") == "PostToolUseFailure":
+            return session_id, "Y"
         if err or term == "error":
             return session_id, "R"
         event = parsed_payload.get("hook_event_name") or parsed_payload.get("event") or ""
         tool = parsed_payload.get('tool_name', '')
-        if event.upper() in ('PRETOOLUSE', 'POSTTOOLUSE') and (
-                'request_user_input' in tool or tool == 'AskUserQuestion'):
+        if event.upper() in ('PRETOOLUSE', 'POSTTOOLUSE', 'BEFORETOOL') and (
+                'request_user_input' in tool or (tool == 'AskUserQuestion' and event.upper() == 'PRETOOLUSE') or
+                (tool == 'ask_user' and event.upper() == 'BEFORETOOL')):
             return session_id, 'B'
         if event.upper() in EVENT_MAP:
             return session_id, EVENT_MAP[event.upper()]
@@ -184,6 +215,10 @@ def parse_input():
 def main():
     session_id, color = parse_input()
 
+    if color is None:
+        if not options().silent:
+            print("{}")
+        return
     success, resp = send_via_tcp(session_id, color)
     channel = "bridge"
 
@@ -192,7 +227,8 @@ def main():
         channel = "direct_serial"
 
     log(f"Session: {session_id[:12]} | State: {color} | Success: {success} | Channel: {channel} | Resp: {resp}")
-    print("{}")
+    if not options().silent:
+        print(json.dumps({"continue": True}) if options().cursor_prompt else "{}")
     sys.exit(0)
 
 if __name__ == "__main__":

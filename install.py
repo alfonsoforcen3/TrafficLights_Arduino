@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the tested macOS Codex traffic-light profile without system-wide pip changes."""
+"""Install the macOS traffic-light bridge and detected local provider adapters without system-wide pip changes."""
 import argparse
 import json
 from pathlib import Path
@@ -40,6 +40,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--transport', choices=['ble', 'serial'], default='ble')
     parser.add_argument('--ble-name', help='Exact TrafficLight-XXXX advertisement; otherwise discover via USB')
+    parser.add_argument('--providers', nargs='+', choices=['codex', 'claude', 'gemini', 'cursor'],
+                        help='Override auto-detection; install only selected local provider hooks')
     parser.add_argument('--no-hooks', action='store_true', help='Update connection/service only, preserving hook definitions')
     args = parser.parse_args()
     if platform.system() != 'Darwin':
@@ -59,9 +61,13 @@ def main():
         name = discover_name()
     codex_setup.install_service(args.transport, name)
     if not args.no_hooks:
-        codex_setup.enable(install_login_service=False)
+        from scripts import provider_setup
+        providers = args.providers or list(provider_setup.detect())
+        print('Installing detected/selected hooks:', ', '.join(providers) or 'none')
+        for provider in providers:
+            provider_setup.configure(provider)
     print('Installed transport:', args.transport, '| Bluetooth name:', name)
-    print('Review/trust Traffic light hooks in Codex; allow Traffic Light Bridge Bluetooth access in macOS.')
+    print('Review installed hooks in each provider; allow Traffic Light Bridge Bluetooth access in macOS.')
     print('Run python3 manage_hooks.py status. A running service is not proof the board or hooks are ready.')
 
 if __name__ == '__main__':

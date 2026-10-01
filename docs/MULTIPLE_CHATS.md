@@ -1,6 +1,6 @@
 # Multiple chats and settled display states
 
-One Mac bridge and one board serve all supported local chats. Each hook sends a conversation/session ID plus its latest state. The bridge stores separate records, so finishing one chat does not mark another finished. The board receives only the combined colour, not prompts, chat titles, or a list of conversations.
+One Mac bridge and one board serve all supported local chats, including mixed providers; see [adapters](PROVIDERS.md). Each hook sends a provider-namespaced conversation/session ID plus its latest state. The bridge stores separate records, so finishing one chat does not mark another finished. The board receives only the combined colour, not prompts, chat titles, or a list of conversations.
 
 ## Priority
 

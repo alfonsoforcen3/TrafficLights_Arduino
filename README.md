@@ -1,6 +1,6 @@
-# Bluetooth traffic light for Codex
+# Bluetooth traffic light for local AI agents
 
-A physical green / amber / red indicator for locally running Codex and ChatGPT Work chats. The tested wireless build uses a nice!nano-compatible nRF52840 board and a macOS Bluetooth login helper.
+A physical green / amber / red indicator with adapters for local Codex/Work, Claude Code, Gemini CLI, and Cursor Agent. Codex is verified on the prototype; the other adapters require live application acceptance tests. The tested wireless build uses a nice!nano-compatible nRF52840 board and a macOS Bluetooth login helper.
 
 | Light | Meaning |
 | --- | --- |
@@ -17,11 +17,12 @@ Give your agent this prompt:
 
 > Clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git, read AGENTS.md and INSTALL.md, and install the macOS Bluetooth traffic light for my board. Verify the actual board and its wiring, preserve my existing hooks, and tell me when I need to approve macOS Bluetooth access or Codex hook trust. Do not report success until the board acknowledges commands over BLE and I confirm the LEDs physically light.
 
-Then follow [INSTALL.md](INSTALL.md). The installer creates its own Python environment, discovers your board's name, installs the Mac login helper, and writes machine-local hook commands. It does not bypass OS permissions or hook trust.
+Then follow [INSTALL.md](INSTALL.md). The installer creates its own Python environment, discovers your board's name, installs the Mac login helper, detects supported AI tools, and writes machine-local hook commands. It does not bypass OS permissions or hook trust.
 
 ## Documentation
 
 - [Installation and agent workflow](INSTALL.md)
+- [Provider detection, supported adapters, and custom integrations](docs/PROVIDERS.md)
 - [Board, LEDs, pin numbers, and flashing](docs/HARDWARE.md)
 - [Bluetooth architecture and automatic recovery](docs/BLUETOOTH.md)
 - [Hooks, permissions, and removal](HOOKS_GUIDE.md)
@@ -36,8 +37,9 @@ Then follow [INSTALL.md](INSTALL.md). The installer creates its own Python envir
 ## Commands
 
 ```bash
-python3 install.py                       # macOS BLE installation; USB discovery on first install
+python3 install.py                       # macOS BLE + hooks for detected supported tools
 python3 install.py --ble-name TrafficLight-ABCD  # already provisioned board, exact name
+python3 install.py --providers codex claude gemini cursor # explicit provider selection
 python3 install.py --no-hooks            # update service without changing approved hooks
 python3 manage_hooks.py status
 python3 scripts/verify_hardware.py       # test through the installed bridge
