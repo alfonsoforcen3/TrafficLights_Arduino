@@ -44,6 +44,19 @@ class SetupTests(unittest.TestCase):
                 install.discover_name()
 
 class BridgeTests(unittest.TestCase):
+    def test_multiple_chats_follow_priority_without_losing_other_sessions(self):
+        bridge = module('bridge')
+        for states, expected in [(('Y','G'),'Y'), (('G','Y'),'Y'), (('Y','R'),'R'),
+                                 (('R','B'),'B'), (('G','G'),'G')]:
+            bridge.active_sessions = {str(i): {'state': state, 'updated':time.time()}
+                                      for i, state in enumerate(states)}
+            self.assertEqual(bridge.compute_aggregate_state(), expected)
+        bridge.active_sessions = {'working': {'state':'Y'}, 'finished': {'state':'G'}}
+        del bridge.active_sessions['finished']
+        self.assertEqual(bridge.compute_aggregate_state(), 'Y')
+        bridge.active_sessions.clear()
+        self.assertEqual(bridge.compute_aggregate_state(), 'G')
+
     def test_green_waits_for_completion_and_resumed_work_cancels_it(self):
         bridge = module('bridge')
         bridge.current_hardware_state = 'Y'

@@ -19,3 +19,5 @@ Battery follow-up: user confirmed physical operation after automatic BLE reconne
 Reconnect follow-up: user reported green during work; host hooks selected amber but BLE was disconnected. Restarting the helper restored BLE and amber acknowledgement; user confirmed the light changed. Added bounded Bluetooth operation timeouts and a stalled-write regression test. Eight regression tests pass. Repeated battery-cycle recovery remains to be measured.
 
 Display follow-up: added a cancellable 1.5-second completion delay before green and 0.8-second input delay before blinking red; work/error changes remain immediate. Ten regression tests pass, including resumed-work cancellation and suppression of brief input signals. The prior end-of-turn colour sequence was an explicit hardware diagnostic.
+
+Release documentation: consolidated multi-chat priority, completion/input settling, session recovery and integration limits in docs/MULTIPLE_CHATS.md. Eleven regression tests pass, including concurrent-chat priority and preservation of other chats when one ends.

@@ -34,3 +34,5 @@ Gemini and Claude examples in old revisions are legacy integrations, not current
 ## Settled display transitions
 
 Working amber is immediate. After hooks report all sessions finished, green waits 1.5 seconds; renewed activity cancels it. Blinking red waits 0.8 seconds so brief input-hook signals do not flash. Solid error red remains immediate. Diagnostic hardware tests intentionally bypass these delays and should not be run during ordinary conversations. These are settled colour changes, not PWM brightness fades.
+
+See [multiple chats](docs/MULTIPLE_CHATS.md) for session priority, examples, transition timing, and stale-session recovery.

@@ -25,6 +25,7 @@ Then follow [INSTALL.md](INSTALL.md). The installer creates its own Python envir
 - [Board, LEDs, pin numbers, and flashing](docs/HARDWARE.md)
 - [Bluetooth architecture and automatic recovery](docs/BLUETOOTH.md)
 - [Hooks, permissions, and removal](HOOKS_GUIDE.md)
+- [Multiple chats, priority, and transition timing](docs/MULTIPLE_CHATS.md)
 - [Battery, switch, and charging](docs/BATTERY.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Supported and unverified platforms](docs/COMPATIBILITY.md)
