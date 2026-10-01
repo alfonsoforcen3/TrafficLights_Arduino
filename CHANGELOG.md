@@ -30,3 +30,10 @@ Release documentation: consolidated multi-chat priority, completion/input settli
 - Installed Claude Code hooks on this Mac without changing approved Codex hook definitions. The installer detects Codex and Claude here; Gemini and Cursor are absent and were not installed.
 - Nineteen hardware-free regressions pass. Synthetic invocation of the installed Claude prompt/Stop/SessionEnd commands alongside this live Codex turn preserved amber and separate session records; BLE GPIO acknowledged Y. No paid model run was started to test Claude.
 - Real Claude/Gemini/Cursor application dispatch and clean-customer installation remain acceptance tasks. Ordinary web AI chats, other apps without adapters and cloud VMs are not automatically tracked. Documented all adapters and extension workflow in docs/PROVIDERS.md.
+
+## 2026-10-01 — presentation and commercial separation
+
+- Added a vector product banner, customer-oriented README and documentation index.
+- Added hardware-free CI, local documentation-link validation, issue/PR templates and security/contribution guidance.
+- Documented production release gates and OpenCode/Windsurf integration candidates without claiming unsupported applications work.
+- Owner selected private implementation plus public setup/docs and a signed Mac installer. Existing public copies cannot be recalled; the current alias helper is not a standalone signed consumer package. Commercial packaging and terms remain release work.

@@ -1,0 +1,31 @@
+name: Setup or indicator problem
+description: Report a reproducible problem with sanitized version and state evidence.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Read the troubleshooting guide first. Do not paste credentials, full provider settings, private chat contents, or raw hook payloads."
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the expected light and actual light, and steps to reproduce.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Repository commit/release, macOS, AI application and version.
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware and power
+      description: Board revision, firmware version, and USB or battery power. Omit unique device IDs.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Connection status, aggregate state, GPIO mode, and checks already performed. Remove local usernames, paths and session IDs.
