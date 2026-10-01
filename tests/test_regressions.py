@@ -44,6 +44,30 @@ class SetupTests(unittest.TestCase):
                 install.discover_name()
 
 class BridgeTests(unittest.TestCase):
+    def test_green_waits_for_completion_and_resumed_work_cancels_it(self):
+        bridge = module('bridge')
+        bridge.current_hardware_state = 'Y'
+        with patch.object(bridge.time, 'monotonic', return_value=10), patch.object(bridge, 'write_to_hardware') as write:
+            bridge.request_transition('G')
+            bridge.settle_transition()
+            write.assert_not_called()
+            bridge.request_transition('Y')
+            self.assertIsNone(bridge.pending_transition)
+        with patch.object(bridge.time, 'monotonic', return_value=20):
+            bridge.request_transition('G')
+        with patch.object(bridge.time, 'monotonic', return_value=21.6), patch.object(bridge, 'write_to_hardware') as write:
+            bridge.settle_transition()
+            write.assert_called_once_with('G')
+
+    def test_brief_input_signal_does_not_flash_red(self):
+        bridge = module('bridge')
+        bridge.current_hardware_state = 'Y'
+        with patch.object(bridge.time, 'monotonic', return_value=10), patch.object(bridge, 'write_to_hardware') as write:
+            bridge.request_transition('B')
+            bridge.request_transition('Y')
+            bridge.settle_transition()
+            write.assert_not_called()
+
     def test_restart_restores_current_state_and_discards_old_sessions(self):
         bridge = module('bridge')
         with tempfile.TemporaryDirectory() as directory:

@@ -40,6 +40,27 @@ hardware_synced = False
 ser_conn = None
 ser_lock = threading.Lock()
 firmware_report = None
+pending_transition = None
+
+def settle_transition():
+    global pending_transition
+    if pending_transition and time.monotonic() >= pending_transition[1]:
+        state = pending_transition[0]
+        pending_transition = None
+        write_to_hardware(state)
+
+def request_transition(state):
+    global pending_transition
+    if state == current_hardware_state:
+        pending_transition = None
+        return
+    delay = {'G': 1.5, 'B': 0.8}.get(state, 0)
+    if delay:
+        if not pending_transition or pending_transition[0] != state:
+            pending_transition = (state, time.monotonic() + delay)
+    else:
+        pending_transition = None
+        write_to_hardware(state)
 
 def find_serial_port():
     override = os.environ.get("TRAFFIC_PORT")
@@ -241,7 +262,7 @@ def get_active_port():
         return ser_conn.port if (ser_conn is not None and ser_conn.is_open) else None
 
 def run_bridge():
-    global current_hardware_state, ser_conn, hardware_synced, bluetooth_link
+    global current_hardware_state, ser_conn, hardware_synced, bluetooth_link, pending_transition
     print("=" * 60)
 
     restore_sessions()
@@ -266,11 +287,16 @@ def run_bridge():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((TCP_HOST, TCP_PORT))
     server.listen(10)
+    server.settimeout(0.1)
     print(f"✅ Bridge TCP server listening on {TCP_HOST}:{TCP_PORT}...\n", flush=True)
 
     try:
         while True:
-            client, _ = server.accept()
+            settle_transition()
+            try:
+                client, _ = server.accept()
+            except socket.timeout:
+                continue
             try:
                 raw_data = client.recv(1024).decode("utf-8", errors="ignore").strip()
                 if not raw_data:
@@ -309,6 +335,7 @@ def run_bridge():
                             test_state = payload.get('state')
                             if test_state not in ('G', 'Y', 'R', 'B', 'O'):
                                 raise ValueError('Invalid hardware test state')
+                            pending_transition = None
                             write_to_hardware(test_state)
                             client.sendall(b'{"status":"test_started"}\n')
                             continue
@@ -351,8 +378,8 @@ def run_bridge():
 
                 # Update physical hardware if state changed, test requested, or not synced
                 save_sessions()
+                request_transition(new_state)
                 if new_state != current_hardware_state or cmd == 'T' or not hardware_synced:
-                    write_to_hardware(new_state)
                     summary = f"[{new_state}] (Active Sessions: {len(active_sessions)})"
                     print(f"🚦 Hardware ➔ {summary} | Triggered by '{session_id[:12]}' -> {cmd}", flush=True)
 
