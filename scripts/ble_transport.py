@@ -82,7 +82,11 @@ class BluetoothLink:
                     self.connected = True
                     self.last_error = None
                     print('Bluetooth connected: ' + self.name + ' (' + self.peer + ')', flush=True)
+                    next_battery = 0
                     while client.is_connected and self.connected:
+                        if self.loop.time() >= next_battery:
+                            await self.write(b"V")
+                            next_battery = self.loop.time() + 60
                         await self.write(self.get_state().encode())
                         await asyncio.sleep(3)
                 finally:

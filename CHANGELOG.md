@@ -39,3 +39,11 @@ Release documentation: consolidated multi-chat priority, completion/input settli
 - Owner selected private implementation plus public setup/docs and a signed Mac installer. Existing public copies cannot be recalled; the current alias helper is not a standalone signed consumer package. Commercial packaging and terms remain release work.
 
 Repository separation verified: TrafficLights_Arduino visibility is private; TrafficLights_Setup was created public with a fresh documentation-only history. Source history preserved and backed up locally. No standalone consumer installer is published.
+
+## 2026-10-02 — Clawdy local website and battery telemetry
+
+- Added a Mac-local Clawdy website with CyberDuck alternate, explicit product/installer previews, Bluetooth setup and multi-session explanation.
+- Added read-only loopback battery dashboard, real ADC readings over BLE, bounded voltage history and missing/stale handling.
+- Added calibration-gated battery voltage and approximate percentage; charger status remains unknown until hardware can support it.
+- Preserved existing hook approvals and firmware backups. Verified BLE sensor reports and GPIO acknowledgements; 22 automated tests pass.
+- Public QR hosting, clone calibration and charging validation remain outstanding; see docs/WEBSITE_BATTERY.md.

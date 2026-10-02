@@ -77,6 +77,8 @@ def install_service(transport=None, ble_name=None):
         # Login services cannot rely on access to macOS-protected Desktop folders.
         shutil.copy2(ROOT / 'scripts' / 'bridge.py', RUNTIME / 'bridge.py')
         shutil.copy2(ROOT / 'scripts' / 'ble_transport.py', RUNTIME / 'ble_transport.py')
+        shutil.copy2(ROOT / 'scripts' / 'dashboard.py', RUNTIME / 'dashboard.py')
+        shutil.copytree(ROOT / 'web', RUNTIME / 'web', dirs_exist_ok=True)
         program = [str(python), '-u', str(RUNTIME / 'bridge.py')]
         if config['transport'] == 'ble':
             for filename in ('bluetooth_app.py', 'build_bluetooth_app.py'):

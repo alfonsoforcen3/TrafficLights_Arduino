@@ -86,3 +86,5 @@ This is a working **tester preview**, not a completed consumer release. Battery 
 The verified prototype uses a nice!nano-compatible clone with **P0.10 green, P1.11 amber, P1.13 red**. Confirm the exact board's battery/charger specifications before applying genuine nice!nano guidance. [Hardware](docs/HARDWARE.md) · [Battery wiring and charging](docs/BATTERY.md)
 
 The owner has selected private implementation plus public setup/docs and a signed installer. This checkout is for authorized maintainers/testers; the consumer installer is not yet available. No open-source license is supplied; dependencies retain their own terms. See [commercial policy options](docs/COMMERCIAL.md).
+
+The Mac preview includes a [Clawdy website and real battery sensor dashboard](docs/WEBSITE_BATTERY.md). Battery percentage requires verified calibration; charging status is not inferred.

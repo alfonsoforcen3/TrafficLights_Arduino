@@ -35,3 +35,7 @@ Battery duration and repeated battery-switch cycles have not been measured on th
 ## Prototype supplier evidence
 
 The purchased board is [Amazon ASIN B0DP18ZVL7](https://www.amazon.ae/dp/B0DP18ZVL7), listed as Generic, model Genericz6347kyngh, compatible with nice!nano v2.0. Its product description claims support for lithium battery charging/discharging. It does not specify the charging IC, programmed current, termination voltage, or protection arrangement. This supports the presence of a charger but does not establish safe charging for the JH 300 mAh pack. Obtain the board schematic/charger details and battery charge rating before approving USB charging. Genuine nice!nano charger specifications must not be substituted for this clone.
+
+## Live telemetry dashboard
+
+The Mac dashboard at `http://127.0.0.1:8766/#battery` displays genuine ADC readings over BLE. Percentage remains unavailable until this board's divider is verified; charger state remains unknown. See [website and battery implementation](WEBSITE_BATTERY.md) for sampling, calibration, privacy and the actual validation performed.

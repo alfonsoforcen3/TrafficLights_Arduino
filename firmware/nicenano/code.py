@@ -24,6 +24,13 @@ mode = "G"
 last_blink = time.monotonic()
 ble = None
 ble_error = None
+battery = None
+battery_error = None
+try:
+    from battery import Battery
+    battery = Battery()
+except Exception as error:
+    battery_error = str(error)
 try:
     from ble_link import Link
     ble = Link()
@@ -43,7 +50,9 @@ def report(transport='usb'):
                         'P0.10': green.value, 'P1.11': amber.value,
                         'P1.13': red.value, 'transport': transport,
                         'ble_name': ble.name if ble else None,
-                        'ble_error': ble_error}) + '\n').encode()
+                        'ble_error': ble_error,
+                        'battery': battery.sample() if battery else None,
+                        'battery_error': battery_error}) + '\n').encode()
     if transport == 'ble' and ble:
         ble.send(data)
     elif port.connected:
@@ -71,7 +80,11 @@ while True:
         for cmd in commands.decode('utf-8').upper():
             if cmd == 'X' and transport == 'usb':
                 microcontroller.reset()  # Local maintenance reset; never exposed over BLE.
-            if cmd == "Q":
+            if cmd == "V":
+                if battery:
+                    battery.sample(force=True)
+                report(transport)
+            elif cmd == "Q":
                 report(transport)
             elif cmd == "T":
                 for color in "RYG":

@@ -271,12 +271,23 @@ def run_bridge():
     print("🚦 ARDUINO TRAFFIC LIGHT — TRUE PLUG & GO BRIDGE DAEMON")
     print("=" * 60)
 
+    from dashboard import Dashboard
+    assets = os.path.join(os.path.dirname(__file__), "web")
+    if not os.path.isdir(assets):
+        assets = os.path.join(os.path.dirname(__file__), "..", "web")
+    dashboard = Dashboard(lambda: firmware_report, is_hardware_connected, assets)
+    try:
+        dashboard.start()
+    except OSError as error:
+        print("Dashboard unavailable: " + str(error), flush=True)
+
     # Start the hardware watchdog thread
     if TRANSPORT == 'ble':
         from ble_transport import BluetoothLink
         def received(report):
             global firmware_report, hardware_synced
             firmware_report = report
+            dashboard.received(report)
             hardware_synced = report is not None
         bluetooth_link = BluetoothLink(os.environ['TRAFFIC_BLE_NAME'],
                                        lambda: current_hardware_state, received)
