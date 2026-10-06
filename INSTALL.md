@@ -114,3 +114,5 @@ python3 scripts/verify_hardware.py
 ```
 
 Allow Traffic Light Bridge Bluetooth access in macOS and review detected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop. Battery percentage and charging are still unverified.
+
+For release verification, agent handoff requirements, and restoration after disabling hooks, follow [the laptop handoff procedure](docs/LAPTOP_HANDOFF.md).

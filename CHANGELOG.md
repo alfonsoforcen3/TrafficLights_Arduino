@@ -55,3 +55,8 @@ Repository separation verified: TrafficLights_Arduino visibility is private; Tra
 - Verification reads the actual configured green GPIO and waits for the connection animation to finish.
 - Provisioning preserves unit/calibration files in backups and handles macOS metadata/UF2 reset behaviour.
 - Documented migration to another Mac without reflashing. Twenty-five automated tests pass; BLE GPIO delivery and the visual connection animation were confirmed on first clawdy. Second-laptop and physical power-cycle acceptance remain pending.
+
+## 2026-10-06 — Release and agent laptop handoff
+
+- Released first clawdy from the original Mac by disabling owned provider hooks and removing its login service; verified service and bridge listener absent.
+- Added an agent handoff runbook, known unit identity/wiring, release checks and reinstallation instructions. New-laptop connection remains unverified.
