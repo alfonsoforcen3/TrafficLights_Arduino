@@ -65,3 +65,7 @@ Repository separation verified: TrafficLights_Arduino visibility is private; Tra
 
 - Added a complete Windows-agent prompt covering native BLE, runtime/startup, provider hooks, permissions, release/recovery, regression tests, physical acceptance and commits.
 - Added a redacted findings template and agent entrypoint. Windows implementation/installation remains pending on the Windows laptop; current installer remains macOS-only.
+
+## 2026-10-06 — Native platform-aware installation
+
+Installer selects macOS or Windows runtime paths, dependency sets and login launchers; provider commands use platform quoting. Windows login startup, cooperative shutdown, runtime connection configuration and portable test delays added. Windows report summarized without private email headers. Previous report branch was unavailable; native acceptance of this implementation is pending.

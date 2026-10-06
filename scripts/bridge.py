@@ -29,7 +29,12 @@ import serial.tools.list_ports
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
 BAUD_RATE = 115200
-TRANSPORT = os.environ.get('TRAFFIC_TRANSPORT', 'serial').lower()
+try:
+    with open(os.path.expanduser('~/.local/share/trafficlights/connection.json'), encoding='utf-8') as config_file:
+        connection_config = json.load(config_file)
+except FileNotFoundError:
+    connection_config = {}
+TRANSPORT = os.environ.get('TRAFFIC_TRANSPORT', connection_config.get('transport', 'serial')).lower()
 STATE_FILE = os.path.expanduser(os.environ.get('TRAFFIC_STATE_FILE', '~/.local/share/trafficlights/sessions.json'))
 bluetooth_link = None
 
@@ -267,6 +272,12 @@ def run_bridge():
     global current_hardware_state, ser_conn, hardware_synced, bluetooth_link, pending_transition
     print("=" * 60)
 
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((TCP_HOST, TCP_PORT))
+    server.listen(10)
+    server.settimeout(0.1)
+
     restore_sessions()
     print("🚦 ARDUINO TRAFFIC LIGHT — TRUE PLUG & GO BRIDGE DAEMON")
     print("=" * 60)
@@ -289,18 +300,13 @@ def run_bridge():
             firmware_report = report
             dashboard.received(report)
             hardware_synced = report is not None
-        bluetooth_link = BluetoothLink(os.environ['TRAFFIC_BLE_NAME'],
+        bluetooth_link = BluetoothLink(os.environ.get('TRAFFIC_BLE_NAME') or connection_config['ble_name'],
                                        lambda: current_hardware_state, received)
         bluetooth_link.start()
     else:
         watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)
         watchdog_thread.start()
 
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((TCP_HOST, TCP_PORT))
-    server.listen(10)
-    server.settimeout(0.1)
     print(f"✅ Bridge TCP server listening on {TCP_HOST}:{TCP_PORT}...\n", flush=True)
 
     try:
@@ -322,6 +328,10 @@ def run_bridge():
                 if raw_data.startswith("{") and raw_data.endswith("}"):
                     try:
                         payload = json.loads(raw_data)
+
+                        if payload.get("action") == "shutdown":
+                            client.sendall(b'{"status":"stopping"}\n')
+                            return
 
                         # Status query
                         if payload.get("action") == "status":

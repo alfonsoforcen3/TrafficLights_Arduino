@@ -13,6 +13,11 @@ import subprocess
 import sys
 import time
 
+try:
+    from scripts.platform_support import venv_python, hook_command
+except ModuleNotFoundError:
+    from platform_support import venv_python, hook_command
+
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = Path.home() / '.codex' / 'hooks.json'
 SERVICE = 'local.trafficlights.bridge'
@@ -50,8 +55,8 @@ def save(data):
     temporary.replace(HOOKS)
 
 def install_service(transport=None, ble_name=None):
-    if sys.platform != 'darwin':
-        raise RuntimeError('Automatic login service installation is supported on macOS only.')
+    if sys.platform not in ('darwin', 'win32'):
+        raise RuntimeError('Use native macOS or Windows Python.')
     RUNTIME.mkdir(parents=True, exist_ok=True)
     config_path = RUNTIME / 'connection.json'
     config = json.loads(config_path.read_text()) if config_path.exists() else {
@@ -64,12 +69,19 @@ def install_service(transport=None, ble_name=None):
         raise RuntimeError('Run python3 install.py to discover your board, or provide --ble-name.')
     python = Path(sys.executable)
     if config['transport'] == 'ble':
-        python = RUNTIME / 'venv' / 'bin' / 'python'
+        python = venv_python(RUNTIME)
         if not python.exists():
             subprocess.run([sys.executable, '-m', 'venv', str(RUNTIME / 'venv')], check=True)
-        subprocess.run([str(python), '-m', 'pip', 'install',
-                        'bleak==0.22.3', 'pyserial==3.5', 'py2app==0.28.8',
-                        'setuptools<71'], check=True)
+        dependencies = ['bleak==0.22.3', 'pyserial==3.5']
+        if sys.platform == 'darwin':
+            dependencies += ['py2app==0.28.8', 'setuptools<71']
+        subprocess.run([str(python), '-m', 'pip', 'install', *dependencies], check=True)
+    if sys.platform == 'win32':
+        try:
+            from scripts.windows_service import install
+        except ModuleNotFoundError:
+            from windows_service import install
+        install(ROOT, RUNTIME, python, config)
     config_path.write_text(json.dumps(config, indent=2) + '\n')
     if sys.platform == 'darwin':
         PLIST.parent.mkdir(parents=True, exist_ok=True)
@@ -105,8 +117,8 @@ def enable(install_login_service=True):
     events = {'SessionStart': 'G', 'UserPromptSubmit': 'Y', 'PreToolUse': 'Y',
               'PostToolUse': 'Y', 'PermissionRequest': 'B', 'Stop': 'G',
               'Interrupt': 'G', 'SessionEnd': 'O'}
-    hook_python = RUNTIME / 'venv' / 'bin' / 'python'
-    base = shlex.quote(str(hook_python) if hook_python.exists() else sys.executable) + ' ' + shlex.quote(str(ROOT / 'scripts' / 'traffic.py'))
+    hook_python = venv_python(RUNTIME)
+    base = hook_command(hook_python if hook_python.exists() else sys.executable, ROOT / 'scripts' / 'traffic.py')
     for event, color in events.items():
         group = {'hooks': [{'type': 'command', 'command': base + ' ' + color,
                             'timeout': 3, 'statusMessage': MARKER + ' ' + event}]}
@@ -135,11 +147,18 @@ def disable():
     data = read_hooks()
     remove_ours(data)
     save(data)
+    if sys.platform == 'win32':
+        try:
+            from scripts.windows_service import remove
+        except ModuleNotFoundError:
+            from windows_service import remove
+        remove()
     if sys.platform == 'darwin' and PLIST.exists():
         subprocess.run(['launchctl', 'bootout', 'gui/' + str(os.getuid()), str(PLIST)], check=False)
         PLIST.unlink()
-    subprocess.run([sys.executable, str(ROOT / 'scripts' / 'traffic.py'), 'O'],
-                   stdin=subprocess.DEVNULL)
+    if sys.platform != 'win32':
+        subprocess.run([sys.executable, str(ROOT / 'scripts' / 'traffic.py'), 'O'],
+                       stdin=subprocess.DEVNULL)
     print('Removed owned provider hooks and login service; unrelated hooks preserved.')
 
 if __name__ == '__main__':

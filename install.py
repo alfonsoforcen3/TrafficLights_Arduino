@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the macOS traffic-light bridge and detected local provider adapters without system-wide pip changes."""
+"""Install the native macOS/Windows traffic-light bridge and detected local provider adapters without system-wide pip changes."""
 import argparse
 import json
 from pathlib import Path
@@ -44,9 +44,13 @@ def main():
                         help='Override auto-detection; install only selected local provider hooks')
     parser.add_argument('--no-hooks', action='store_true', help='Update connection/service only, preserving hook definitions')
     args = parser.parse_args()
-    if platform.system() != 'Darwin':
-        raise SystemExit('This installer supports macOS. See docs/COMPATIBILITY.md for manual/legacy platforms.')
-    python = RUNTIME / 'venv' / 'bin' / 'python'
+    from scripts.platform_support import require_platform, venv_python
+    try:
+        system = require_platform()
+    except RuntimeError as error:
+        raise SystemExit(str(error))
+    print('Detected operating system:', system)
+    python = venv_python(RUNTIME)
     if Path(sys.prefix) != RUNTIME / 'venv':
         if not python.exists():
             venv.EnvBuilder(with_pip=True).create(RUNTIME / 'venv')
@@ -67,7 +71,7 @@ def main():
         for provider in providers:
             provider_setup.configure(provider)
     print('Installed transport:', args.transport, '| Bluetooth name:', name)
-    print('Review installed hooks in each provider; allow Traffic Light Bridge Bluetooth access in macOS.')
+    print('Review installed hooks in each provider and allow Bluetooth access if prompted.')
     print('Run python3 manage_hooks.py status. A running service is not proof the board or hooks are ready.')
 
 if __name__ == '__main__':

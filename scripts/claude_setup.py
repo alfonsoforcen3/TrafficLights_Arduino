@@ -7,6 +7,11 @@ import shlex
 import shutil
 import time
 
+try:
+    from scripts.platform_support import venv_python, hook_command
+except ModuleNotFoundError:
+    from platform_support import venv_python, hook_command
+
 ROOT = Path(__file__).resolve().parents[1]
 SETTINGS = Path.home() / '.claude' / 'settings.json'
 RUNTIME = Path.home() / '.local' / 'share' / 'trafficlights'
@@ -35,10 +40,10 @@ def configure(enable):
         raise RuntimeError('Claude hooks are disabled in user settings; resolve that preference explicitly first.')
     remove_ours(data)
     if enable:
-        python = RUNTIME / 'venv' / 'bin' / 'python'
+        python = venv_python(RUNTIME)
         if not python.exists():
-            raise RuntimeError('Install the shared Mac bridge with install.py first.')
-        base = shlex.quote(str(python)) + ' ' + shlex.quote(str(ROOT / 'scripts' / 'traffic.py'))
+            raise RuntimeError('Install the shared desktop bridge with install.py first.')
+        base = hook_command(python, ROOT / 'scripts' / 'traffic.py')
         for event, state in EVENTS.items():
             group = {'hooks':[{'type':'command', 'command':base + ' ' + state + ' --provider claude --silent',
                                'timeout':3, 'statusMessage':MARKER + event}]}

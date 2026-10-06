@@ -1,3 +1,5 @@
+> Native macOS/Windows auto-selection is now implemented. See [Windows installation](docs/windows/INSTALL.md) for current commands, reported evidence and pending native acceptance checks. Older macOS-only or Windows-pending statements below describe the earlier release.
+
 # Install the macOS Bluetooth build
 
 ## 1. Prerequisites

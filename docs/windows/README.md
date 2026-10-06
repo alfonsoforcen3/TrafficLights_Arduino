@@ -1,3 +1,5 @@
+> Native macOS/Windows auto-selection is now implemented. See [Windows installation](INSTALL.md) for current commands, reported evidence and pending native acceptance checks. Older macOS-only or Windows-pending statements below describe the earlier release.
+
 # Windows companion work
 
 **Windows support has not yet been implemented or physically verified.** The current installer is macOS-only. These documents hand implementation and evidence capture to the agent on the Windows laptop.

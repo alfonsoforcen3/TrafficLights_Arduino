@@ -7,6 +7,11 @@ import shlex
 import shutil
 import time
 
+try:
+    from scripts.platform_support import venv_python, hook_command
+except ModuleNotFoundError:
+    from platform_support import venv_python, hook_command
+
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = Path.home() / '.local/share/trafficlights'
 SUPPORTED = ('codex','claude','gemini','cursor')
@@ -81,11 +86,11 @@ def configure(provider, enable=True):
         raise RuntimeError('Unsupported Cursor hook schema version; settings left unchanged.')
     if enable and provider == 'gemini' and data.get('hooksConfig',{}).get('enabled') is False:
         raise RuntimeError('Gemini hooks are disabled; settings left unchanged.')
-    python = RUNTIME/'venv/bin/python'
-    if enable and not python.exists(): raise RuntimeError('Install the shared Mac bridge first.')
+    python = venv_python(RUNTIME)
+    if enable and not python.exists(): raise RuntimeError('Install the shared desktop bridge first.')
     remove_ours(data,provider)
     if enable:
-        base = shlex.quote(str(python)) + ' ' + shlex.quote(str(ROOT/'scripts/traffic.py'))
+        base = hook_command(python, ROOT/'scripts/traffic.py')
         if provider == 'cursor': data.setdefault('version',1)
         for event,state in EVENTS[provider].items():
             command = base + (' ' + state if state else '') + ' --provider ' + provider

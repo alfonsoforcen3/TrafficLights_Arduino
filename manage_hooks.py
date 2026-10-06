@@ -18,6 +18,7 @@ import json
 import shutil
 import datetime
 import subprocess
+import time
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS_DIR = os.path.join(PROJECT_DIR, "scripts")
@@ -114,7 +115,8 @@ def disable_hooks():
         print(f"✅ Other custom hooks were preserved in {HOOKS_FILE}.")
 
     # Turn off the traffic light
-    subprocess.run([sys.executable, TRAFFIC_SCRIPT, "O"])
+    if sys.platform != "win32":
+        subprocess.run([sys.executable, TRAFFIC_SCRIPT, "O"])
     print("⚫ Sent OFF signal to Arduino.")
     print("\n✅ Successfully reverted! No active traffic light hooks remain.")
 
@@ -229,7 +231,7 @@ def run_test():
     for color, name in [("R", "🔴 Red"), ("Y", "🟡 Yellow"), ("G", "🟢 Green"), ("O", "⚫ Off")]:
         print(f"Switching to {name}...")
         subprocess.run([sys.executable, TRAFFIC_SCRIPT, color])
-        subprocess.run(["sleep", "1"])
+        time.sleep(1)
     print("✅ Test cycle complete!")
 
 def reset_sessions():
