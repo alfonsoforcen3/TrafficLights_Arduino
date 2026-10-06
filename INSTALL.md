@@ -29,7 +29,7 @@ Confirm the hardware profile and LED wiring first. Enter the UF2 bootloader by d
 python3 scripts/flash_nicenano.py --boot-drive /Volumes/NICENANO
 ```
 
-This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
+This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, battery.py, connection_display.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
 
 If CIRCUITPY already runs the correct profile, update its files without downloading/reflashing:
 
@@ -100,3 +100,17 @@ The default installer detects supported local tools and installs their adapters.
 ## Source access and consumer packaging
 
 This is the private maintainer/invited-tester source workflow. Cloning requires authorized GitHub access. Public customer documentation is https://github.com/alfonsoforcen3/TrafficLights_Setup. A standalone signed/notarized consumer installer has not been released yet; public documentation alone cannot install this implementation.
+
+## Move first clawdy to another Mac
+
+This unit is already flashed, with green on P0.09, amber on P1.11, red on P1.13 and BLE name `first clawdy`. Do not reflash or recreate its board profile when installing on another laptop. It needs power and Bluetooth proximity, not USB data.
+
+Release it from the old Mac first, using `python3 manage_hooks.py disable` in this checkout. This disables the old Mac's traffic-light integration. Then, on the new Mac, clone this private repository with an authorized GitHub account and run:
+
+```bash
+python3 install.py --ble-name "first clawdy"
+python3 manage_hooks.py status
+python3 scripts/verify_hardware.py
+```
+
+Allow Traffic Light Bridge Bluetooth access in macOS and review detected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop. Battery percentage and charging are still unverified.

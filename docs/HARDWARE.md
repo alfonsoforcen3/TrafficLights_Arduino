@@ -21,10 +21,30 @@ Use scripts/flash_nicenano.py as described in INSTALL.md. It checks the board ID
 - SHA-256: `454ad2c9d24a82199fe3f59a977b9c04519c1901021ed639dd4a7ed90de7d3f5`
 - Sources: [CircuitPython board page](https://circuitpython.org/board/nice_nano/) and [manufacturer flashing instructions](https://nicekeyboards.com/docs/nice-nano/getting-started/).
 
-Copy boot.py, ble_link.py, and code.py; reset once after boot.py changes. CircuitPython enables USB data only, with its console disabled. Firmware needs only built-in libraries. It also advertises Nordic UART BLE.
+Copy boot.py, ble_link.py, battery.py, connection_display.py, and code.py; reset once after boot.py changes. CircuitPython enables USB data only, with its console disabled. Firmware needs only built-in libraries. It also advertises Nordic UART BLE.
 
 USB/BLE commands are G, Y, R, B, O, T; Q returns a newline JSON GPIO report. USB-only X resets the board for maintenance. T is a firmware light cycle; the host acceptance helper uses explicit states instead.
 
-The BLE name comes from the CPU UID suffix. Read the actual Q response or BLE advertisement and label each unit with its exact TrafficLight-XXXX name. Check names are unique within each batch; the current four-hex suffix is not a production serial-number system. Record batch ID, supplier/revision, firmware commit, name, wiring, visual LED results, and battery/charging acceptance before shipment. Do not ship devices that only pass software checks.
+The default BLE name comes from the CPU UID suffix; a per-unit profile may override it. Read the actual Q response or BLE advertisement and label each unit with its exact TrafficLight-XXXX name. Check names are unique within each batch; the current four-hex suffix is not a production serial-number system. Record batch ID, supplier/revision, firmware commit, name, wiring, visual LED results, and battery/charging acceptance before shipment. Do not ship devices that only pass software checks.
 
 Customers should receive a pre-flashed, assembled, tested unit. USB provisioning is for the factory, firmware updates, and recovery—not ordinary customer onboarding.
+
+## Per-unit wiring and Bluetooth name
+
+The original profile remains P0.10 green, P1.11 amber, P1.13 red. The replacement unit requested on 2026-10-05 uses P0.09 green (the `009` silkscreen below `010`, which reads `600` upside down), with amber and red unchanged, and the requested BLE name `first clawdy`. Provision it only after confirming its actual board/bootloader identity.
+
+On a verified compatible board, `/hardware_config.json` selects the unit profile:
+
+```json
+{"green_pin": "P0.09", "ble_name": "first clawdy"}
+```
+
+Without this file, firmware retains the original P0.10 and UID-based BLE name. Green accepts P0.10, P0.06, or P0.09; the BLE name must fit 1–29 UTF-8 bytes. GPIO reports include `green_pin` and report its actual pin rather than mislabelling it P0.10. Hardware verification supports both profiles. Reload after profile changes, discover the actual advertisement, then update the Mac service using `--no-hooks --ble-name "first clawdy"`. A name change alone is not proof of Bluetooth delivery.
+
+Replacement unit provisioning on 2026-10-05: bootloader Board-ID `nRF52840-nicenano`, version 0.6.0 / S140 6.1.1; pinned CircuitPython 8.1.0 installed after preserving CURRENT.UF2 and initial files. CPU UID `8063344647CEF029`; actual BLE name `first clawdy`. BLE GPIO acknowledgements passed R/Y/G/B/O with P0.09 green and normal tracking restored. Existing provider hooks were preserved with `install.py --no-hooks`. Twenty-two automated tests passed. The user confirmed all three LEDs visibly lit; battery-only cycling and Mac restart have not been tested for this unit. Clone battery percentage/charging remain unverified.
+
+## Bluetooth connection lights
+
+Firmware uses a nonblocking connection display. While disconnected/advertising, all three LEDs blink together, 0.4 seconds on and 0.4 seconds off. On each Bluetooth connection, red → amber → green repeats twice (0.16 seconds per step, about one second total), then the latest tracked state resumes. Commands remain processed during the animation; heartbeats do not restart it. Starting tracked state is off until a host state arrives, avoiding a false completed indication. GPIO reports distinguish `searching`, `connected_show`, and `tracking`; verification waits for tracking before comparing normal colours. Searching consumes additional LED power and does not indicate an AI error or completion.
+
+Validation on first clawdy: searching reports included simultaneous all-on and all-off; reconnection reported searching → connected_show → tracking and restored working/amber. BLE R/Y/G/B/O acknowledgements passed; 25 automated tests pass. Firmware files were backed up locally. The user confirmed the simultaneous blink and connection light show looked good. Physical power-cycle acceptance remains separate.

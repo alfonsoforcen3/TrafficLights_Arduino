@@ -18,12 +18,13 @@ def verify(transport):
             while time.monotonic() < deadline:
                 result = request({'action': 'status'})
                 report = result.get('firmware_report') or {}
-                if result['hardware_connected'] and report.get('mode') == mode:
+                if (result['hardware_connected'] and report.get('mode') == mode
+                        and report.get('display_phase') in (None, 'tracking')):
                     if transport and report.get('transport') != transport:
                         raise AssertionError('Board acknowledgement used the wrong transport: ' + str(report))
                     if mode != 'B':
                         expected = [mode == 'G', mode == 'Y', mode == 'R']
-                        assert [report['P0.10'], report['P1.11'], report['P1.13']] == expected, report
+                        assert [report[report.get('green_pin', 'P0.10')], report['P1.11'], report['P1.13']] == expected, report
                     print('Confirmed', mode, report, flush=True)
                     time.sleep(1)
                     break

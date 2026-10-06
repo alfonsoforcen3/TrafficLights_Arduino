@@ -47,3 +47,11 @@ Repository separation verified: TrafficLights_Arduino visibility is private; Tra
 - Added calibration-gated battery voltage and approximate percentage; charger status remains unknown until hardware can support it.
 - Preserved existing hook approvals and firmware backups. Verified BLE sensor reports and GPIO acknowledgements; 22 automated tests pass.
 - Public QR hosting, clone calibration and charging validation remain outstanding; see docs/WEBSITE_BATTERY.md.
+
+## 2026-10-06 — First Clawdy and Bluetooth connection lights
+
+- Added per-unit green GPIO and Bluetooth-name profiles; first clawdy uses P0.09, P1.11 and P1.13. Original units retain their defaults.
+- Added simultaneous searching blink and a nonblocking connection light show, followed by the latest tracked state.
+- Verification reads the actual configured green GPIO and waits for the connection animation to finish.
+- Provisioning preserves unit/calibration files in backups and handles macOS metadata/UF2 reset behaviour.
+- Documented migration to another Mac without reflashing. Twenty-five automated tests pass; BLE GPIO delivery and the visual connection animation were confirmed on first clawdy. Second-laptop and physical power-cycle acceptance remain pending.

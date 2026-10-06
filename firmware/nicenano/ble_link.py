@@ -3,6 +3,7 @@ import _bleio
 import microcontroller
 import time
 import binascii
+import json
 
 # Nordic UART service UUIDs, in Bluetooth little-endian byte order.
 def uuid(last):
@@ -14,6 +15,15 @@ class Link:
         self.adapter = _bleio.adapter
         self.adapter.enabled = True
         self.name = 'TrafficLight-' + binascii.hexlify(microcontroller.cpu.uid).decode()[-4:].upper()
+        try:
+            with open('/hardware_config.json') as config_file:
+                configured_name = json.load(config_file).get('ble_name')
+            if configured_name is not None:
+                if not isinstance(configured_name, str) or not 1 <= len(configured_name.encode()) <= 29:
+                    raise ValueError('Bluetooth name must be 1 to 29 UTF-8 bytes')
+                self.name = configured_name
+        except OSError:
+            pass
         self.adapter.name = self.name
         self.service = _bleio.Service(uuid(1))
         self.rx = _bleio.Characteristic.add_to_service(

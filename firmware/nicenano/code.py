@@ -8,20 +8,34 @@ import microcontroller
 import time
 import usb_cdc
 import json
+from connection_display import ConnectionDisplay
 
 def output(pin):
     led = digitalio.DigitalInOut(pin)
     led.switch_to_output(value=False)
     return led
 
-green = output(microcontroller.pin.P0_10)
+# Preserve the original wiring unless a per-unit profile explicitly selects another supported pin.
+green_pin = 'P0.10'
+try:
+    with open('/hardware_config.json') as config_file:
+        config = json.load(config_file)
+    green_pin = config.get('green_pin', green_pin)
+except OSError:
+    pass
+if green_pin not in ('P0.10', 'P0.06', 'P0.09'):
+    raise ValueError('Unsupported green pin profile: ' + str(green_pin))
+green = output(getattr(microcontroller.pin, green_pin.replace('.', '_')))
 amber = output(microcontroller.pin.P1_11)
 red = output(microcontroller.pin.P1_13)
 port = usb_cdc.data
 port.timeout = 0
 port.write_timeout = 0.1
-mode = "G"
+mode = "O"
 last_blink = time.monotonic()
+blink_on = True
+connection_display = ConnectionDisplay()
+display_phase = None
 ble = None
 ble_error = None
 battery = None
@@ -47,7 +61,7 @@ def set_lights(g=False, y=False, r=False):
 
 def report(transport='usb'):
     data = (json.dumps({'firmware': 'traffic-nicenano-v1', 'mode': mode,
-                        'P0.10': green.value, 'P1.11': amber.value,
+                        'display_phase': display_phase, 'green_pin': green_pin, green_pin: green.value, 'P1.11': amber.value,
                         'P1.13': red.value, 'transport': transport,
                         'ble_name': ble.name if ble else None,
                         'ble_error': ble_error,
@@ -61,7 +75,7 @@ def report(transport='usb'):
         except OSError:
             pass  # A host disconnect must never stop the LED controller.
 
-set_lights(g=True)
+set_lights()
 was_connected = False
 while True:
     connected = port.connected
@@ -97,9 +111,19 @@ while True:
                 if cmd != mode:
                     mode = cmd
                     last_blink = time.monotonic()
-                    set_lights(g=cmd == "G", y=cmd == "Y", r=cmd in "RB")
+                    blink_on = True
+                    if display_phase == "tracking":
+                        set_lights(g=cmd == "G", y=cmd == "Y", r=cmd in "RB")
                 report(transport)
     if mode == "B" and time.monotonic() - last_blink >= 0.3:
-        red.value = not red.value
+        blink_on = not blink_on
         last_blink = time.monotonic()
+    tracked = (mode == 'G', mode == 'Y', mode == 'R' or (mode == 'B' and blink_on))
+    phase, lights = connection_display.frame(time.monotonic(), bool(ble and ble.connected), tracked)
+    changed = phase != display_phase
+    display_phase = phase
+    if (green.value, amber.value, red.value) != lights:
+        set_lights(*lights)
+    if changed and ble and ble.connected:
+        report('ble')
     time.sleep(0.01)
