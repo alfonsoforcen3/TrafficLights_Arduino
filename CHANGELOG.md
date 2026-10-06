@@ -60,3 +60,8 @@ Repository separation verified: TrafficLights_Arduino visibility is private; Tra
 
 - Released first clawdy from the original Mac by disabling owned provider hooks and removing its login service; verified service and bridge listener absent.
 - Added an agent handoff runbook, known unit identity/wiring, release checks and reinstallation instructions. New-laptop connection remains unverified.
+
+## 2026-10-06 — Windows implementation and findings assignment
+
+- Added a complete Windows-agent prompt covering native BLE, runtime/startup, provider hooks, permissions, release/recovery, regression tests, physical acceptance and commits.
+- Added a redacted findings template and agent entrypoint. Windows implementation/installation remains pending on the Windows laptop; current installer remains macOS-only.

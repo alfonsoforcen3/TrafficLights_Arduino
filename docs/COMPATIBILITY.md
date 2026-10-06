@@ -16,3 +16,5 @@
 | Signed/notarized consumer installer | Not provided; current helper is locally built |
 
 A different nRF52840 board needs its own CircuitPython UF2, pin names, charger documentation and hardware validation. Do not generalize a compatible bootloader label into an exact board specification. Preserve unsupported-platform limitations instead of letting an installer print a false success.
+
+Windows implementation is assigned through the [Windows agent handoff](windows/README.md). This prompt and findings template do not change the current unsupported Windows installation status.
