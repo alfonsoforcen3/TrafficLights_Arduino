@@ -49,9 +49,9 @@ class FirmwareUpdateTests(unittest.TestCase):
             with patch.object(flash_nicenano, 'ROOT', root), \
                  patch.object(flash_nicenano.shutil, 'copyfile') as copy:
                 flash_nicenano.provision(None, drive)
-                sources = [str(call.args[0]) for call in copy.call_args_list]
-                self.assertLess(next(i for i,s in enumerate(sources) if s.endswith('/pwm_led.py')),
-                                next(i for i,s in enumerate(sources) if s.endswith('/code.py')))
+                sources = [call.args[0].name for call in copy.call_args_list]
+                self.assertLess(next(i for i,s in enumerate(sources) if s == 'pwm_led.py'),
+                                next(i for i,s in enumerate(sources) if s == 'code.py'))
             self.assertEqual((drive/'hardware_config.json').read_text(), profile)
 
     def test_powershell_literal_paths_and_legacy_hook_ownership(self):

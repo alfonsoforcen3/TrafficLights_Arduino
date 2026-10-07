@@ -41,3 +41,7 @@ Native Windows execution of this revision, real Gemini/Claude dispatch, Windows 
 Use [Windows INSTALL](../INSTALL.md). Release any other controlling host, pull this iteration, preview providers, run the full installer because hooks changed, review normal provider trust and start fresh provider sessions. Do not attempt firmware writes to a company-blocked USB drive: this unit is already updated. Verify live BLE GPIOs, actual prompt/tool/completion turns, mixed providers and login restart, then append a new sanitized run report using the findings template. Request normal IT approval for policy-blocked dependencies or startup instead of bypassing controls.
 
 Rollback uses the previous Git revision plus the locally preserved board files including per-unit configuration. Do not flash a different board UF2 to resolve a host policy problem. Record the integration commit with `git log -1 --oneline` after pulling; this report is committed together with the tested changes.
+
+## Hosted CI correction
+
+The first hosted run for `25d3105` passed macOS and both Linux jobs; Windows passed 31 of 32 tests. Its sole failure was the firmware copy-order test matching a POSIX slash in a native Windows path (StopIteration), not a firmware/installer failure. The test now compares Path.name and retains the same dependency-order assertion. Source: [initial workflow](https://github.com/alfonsoforcen3/TrafficLights_Arduino/actions/runs/37583527578). New hosted status must be checked separately; physical Windows/provider acceptance remains pending.
