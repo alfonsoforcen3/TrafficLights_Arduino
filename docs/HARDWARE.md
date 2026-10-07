@@ -21,7 +21,7 @@ Use scripts/flash_nicenano.py as described in INSTALL.md. It checks the board ID
 - SHA-256: `454ad2c9d24a82199fe3f59a977b9c04519c1901021ed639dd4a7ed90de7d3f5`
 - Sources: [CircuitPython board page](https://circuitpython.org/board/nice_nano/) and [manufacturer flashing instructions](https://nicekeyboards.com/docs/nice-nano/getting-started/).
 
-Copy boot.py, ble_link.py, battery.py, connection_display.py, and code.py; reset once after boot.py changes. CircuitPython enables USB data only, with its console disabled. Firmware needs only built-in libraries. It also advertises Nordic UART BLE.
+Copy boot.py, ble_link.py, battery.py, connection_display.py, pwm_led.py, and code.py; reset once after boot.py changes. CircuitPython enables USB data only, with its console disabled. Firmware needs only built-in libraries. It also advertises Nordic UART BLE.
 
 USB/BLE commands are G, Y, R, B, O, T; Q returns a newline JSON GPIO report. USB-only X resets the board for maintenance. T is a firmware light cycle; the host acceptance helper uses explicit states instead.
 
@@ -48,3 +48,7 @@ Replacement unit provisioning on 2026-10-05: bootloader Board-ID `nRF52840-nicen
 Firmware uses a nonblocking connection display. While disconnected/advertising, all three LEDs blink together, 0.4 seconds on and 0.4 seconds off. On each Bluetooth connection, red → amber → green repeats twice (0.16 seconds per step, about one second total), then the latest tracked state resumes. Commands remain processed during the animation; heartbeats do not restart it. Starting tracked state is off until a host state arrives, avoiding a false completed indication. GPIO reports distinguish `searching`, `connected_show`, and `tracking`; verification waits for tracking before comparing normal colours. Searching consumes additional LED power and does not indicate an AI error or completion.
 
 Validation on first clawdy: searching reports included simultaneous all-on and all-off; reconnection reported searching → connected_show → tracking and restored working/amber. BLE R/Y/G/B/O acknowledgements passed; 25 automated tests pass. Firmware files were backed up locally. The user confirmed the simultaneous blink and connection light show looked good. Physical power-cycle acceptance remains separate.
+
+## Green PWM brightness
+
+As of 2026-10-07 green uses 5 kHz PWM at 50% duty by default; red and amber retain full digital intensity. `hardware_config.json` may include `"green_brightness": 0.5` (finite range 0–1). A value of 1 restores full green duty; 0 suppresses green illumination. Default applies to supported green profiles, not just First Clawdy. Reports expose green_pwm_duty and green_pwm_frequency alongside boolean GPIO intent; they do not measure emitted brightness. Preserve the per-unit profile when updating. First Clawdy passed BLE R/Y/G/B/O; the owner confirmed all lit and green looked good. See [integration findings](windows/findings/2026-10-07-mac-integration.md).

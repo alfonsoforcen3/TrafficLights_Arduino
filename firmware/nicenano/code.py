@@ -9,6 +9,7 @@ import time
 import usb_cdc
 import json
 from connection_display import ConnectionDisplay
+from pwm_led import PwmLED
 
 def output(pin):
     led = digitalio.DigitalInOut(pin)
@@ -17,15 +18,17 @@ def output(pin):
 
 # Preserve the original wiring unless a per-unit profile explicitly selects another supported pin.
 green_pin = 'P0.10'
+green_brightness = 0.5
 try:
     with open('/hardware_config.json') as config_file:
         config = json.load(config_file)
     green_pin = config.get('green_pin', green_pin)
+    green_brightness = config.get('green_brightness', green_brightness)
 except OSError:
     pass
 if green_pin not in ('P0.10', 'P0.06', 'P0.09'):
     raise ValueError('Unsupported green pin profile: ' + str(green_pin))
-green = output(getattr(microcontroller.pin, green_pin.replace('.', '_')))
+green = PwmLED(getattr(microcontroller.pin, green_pin.replace('.', '_')), green_brightness)
 amber = output(microcontroller.pin.P1_11)
 red = output(microcontroller.pin.P1_13)
 port = usb_cdc.data
@@ -61,7 +64,8 @@ def set_lights(g=False, y=False, r=False):
 
 def report(transport='usb'):
     data = (json.dumps({'firmware': 'traffic-nicenano-v1', 'mode': mode,
-                        'display_phase': display_phase, 'green_pin': green_pin, green_pin: green.value, 'P1.11': amber.value,
+                        'display_phase': display_phase, 'green_pwm_duty': green.max_duty,
+                        'green_pwm_frequency': 5000, 'green_pin': green_pin, green_pin: green.value, 'P1.11': amber.value,
                         'P1.13': red.value, 'transport': transport,
                         'ble_name': ble.name if ble else None,
                         'ble_error': ble_error,

@@ -1,3 +1,13 @@
+# Current Windows acceptance assignment (2026-10-07)
+
+The implementation now exists. Pull the current main branch and read INSTALL.md, docs/windows/INSTALL.md and docs/windows/findings/2026-10-07-mac-integration.md before using the detailed checklist below. Its earlier implementation/pending language is historical: verify and repair the current code instead of overwriting it with another whole-file version.
+
+Start with `git pull --ff-only`, `py -3 scripts/provider_setup.py --detect`, and `py -3 install.py --ble-name "first clawdy"`. First Clawdy already has the PWM firmware installed on Mac; no CIRCUITPY write is required. Review provider trust normally and restart existing sessions if needed. Verify real Gemini and Claude turns, concurrent chats, BLE reconnect and user-login startup. Gemini Windows commands use PowerShell `&` and single-quoted literal paths; do not replace them with cmd.exe or POSIX quoting.
+
+Corporate policy is a boundary, not a defect to bypass. Do not disable DLP or alter trust/security records. If Git push is blocked, supply a sanitized patch/report through a user-approved channel; do not claim a local commit was pushed. Record each passed, failed, blocked and not-run check. Do not commit private account names, addresses or raw logs.
+
+---
+
 # Windows implementation, installation and findings handoff
 
 Copy this complete prompt into the coding agent on the Windows laptop, after cloning the private repository. This is an implementation assignment, not evidence that Windows support already exists. Read the current code and repository instructions before executing it.

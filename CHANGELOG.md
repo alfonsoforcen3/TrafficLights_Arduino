@@ -69,3 +69,7 @@ Repository separation verified: TrafficLights_Arduino visibility is private; Tra
 ## 2026-10-06 — Native platform-aware installation
 
 Installer selects macOS or Windows runtime paths, dependency sets and login launchers; provider commands use platform quoting. Windows login startup, cooperative shutdown, runtime connection configuration and portable test delays added. Windows report summarized without private email headers. Previous report branch was unavailable; native acceptance of this implementation is pending.
+
+## 2026-10-07 — PWM dimming and Windows handoff integration
+
+Green defaults to validated 50% PWM at 5 kHz; First Clawdy updated with backups, real BLE GPIO checks and human visual confirmation. Added safe cross-platform CircuitPython discovery, Gemini PowerShell literal command quoting/turn lifecycle, narrow legacy hook cleanup, bridge PID lifecycle and duplicate-instance rejection. Added portable regression tests and Windows CI. Native Windows acceptance of this revision remains pending; corporate policy is respected. Full findings and agent follow-up instructions recorded.

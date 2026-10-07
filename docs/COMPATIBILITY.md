@@ -1,5 +1,3 @@
-> Native macOS/Windows auto-selection is now implemented. See [Windows installation](windows/INSTALL.md) for current commands, reported evidence and pending native acceptance checks. Older macOS-only or Windows-pending statements below describe the earlier release.
-
 # Compatibility
 
 | Component | Status |
@@ -10,7 +8,8 @@
 | Local Codex hooks | Verified real prompt/stop dispatch |
 | BLE colors / explicit error / automatic helper reconnect | Verified |
 | Other Python/macOS versions | Require acceptance tests |
-| Windows/Linux automatic installation | Not supported by this installer |
+| Native Windows automatic installation | Implemented; previous Windows BLE reported by owner, current revision native acceptance pending |
+| Linux/WSL automatic installation | Unsupported |
 | Arduino Uno/Nano wired sketch | Legacy separate firmware; Bluetooth unavailable |
 | Ordinary ChatGPT chat / cloud-orchestrated Work command hooks | Unsupported |
 | Claude Code / Gemini CLI / Cursor adapters | Installer/payload tests pass; real application acceptance pending |
@@ -19,4 +18,4 @@
 
 A different nRF52840 board needs its own CircuitPython UF2, pin names, charger documentation and hardware validation. Do not generalize a compatible bootloader label into an exact board specification. Preserve unsupported-platform limitations instead of letting an installer print a false success.
 
-Windows implementation is assigned through the [Windows agent handoff](windows/README.md). This prompt and findings template do not change the current unsupported Windows installation status.
+Use the [Windows setup guide](windows/INSTALL.md) and [current integration findings](windows/findings/2026-10-07-mac-integration.md). Do not equate hardware-free CI with native BLE or real-provider acceptance.

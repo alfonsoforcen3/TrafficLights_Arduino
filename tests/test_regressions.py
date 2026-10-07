@@ -31,7 +31,7 @@ class SetupTests(unittest.TestCase):
                 event = 'stop' if provider == 'cursor' else 'AfterAgent'
                 original = {'version':1,'hooks':{event:hooks}} if provider == 'cursor' else {'theme':'custom','hooks':{event:hooks}}
                 settings.write_text(json.dumps(original))
-                python = root/'venv/bin/python'; python.parent.mkdir(parents=True); python.touch()
+                python = provider_setup.venv_python(root); python.parent.mkdir(parents=True); python.touch()
                 with patch.object(provider_setup,'settings_path',return_value=settings), patch.object(provider_setup,'RUNTIME',root), patch.object(provider_setup,'ROOT',root):
                     provider_setup.configure(provider)
                     first = json.loads(settings.read_text())
@@ -67,7 +67,7 @@ class SetupTests(unittest.TestCase):
             other = {'type':'command','command':'other-tool'}
             original = {'permissions':{'allow':['Read']}, 'hooks':{'Stop':[{'hooks':[other]}]}}
             settings.write_text(json.dumps(original))
-            python = root / 'venv/bin/python'
+            python = claude_setup.venv_python(root)
             python.parent.mkdir(parents=True)
             python.touch()
             with patch.object(claude_setup,'SETTINGS',settings), patch.object(claude_setup,'RUNTIME',root), patch.object(claude_setup,'ROOT',root):

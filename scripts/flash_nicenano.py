@@ -5,15 +5,35 @@ import errno
 import hashlib
 from pathlib import Path
 import shutil
+import sys
+import string
 import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = 'https://downloads.circuitpython.org/bin/nice_nano/en_US/adafruit-circuitpython-nice_nano-en_US-8.1.0.uf2'
 SHA256 = '454ad2c9d24a82199fe3f59a977b9c04519c1901021ed639dd4a7ed90de7d3f5'
-FILES = ('boot.py', 'ble_link.py', 'battery.py', 'connection_display.py', 'code.py')
+FILES = ('boot.py', 'ble_link.py', 'battery.py', 'connection_display.py', 'pwm_led.py', 'code.py')
 
-def provision(boot_drive, circuitpy):
+def auto_detect_circuitpy():
+    if sys.platform == 'win32':
+        roots = [Path(letter + ':/') for letter in string.ascii_uppercase]
+    elif sys.platform == 'darwin':
+        roots = list(Path('/Volumes').iterdir())
+    else:
+        raise RuntimeError('Specify --circuitpy on this platform.')
+    candidates = [root for root in roots if (root / 'boot_out.txt').is_file()]
+    if len(candidates) > 1:
+        raise RuntimeError('Multiple CircuitPython drives found; specify --circuitpy explicitly.')
+    return candidates[0] if candidates else None
+
+
+def provision(boot_drive, circuitpy=None):
+    # Bootloader flashing must work before CIRCUITPY exists. Discover after reset.
+    if circuitpy is None and not boot_drive:
+        circuitpy = auto_detect_circuitpy()
+    if not boot_drive and (circuitpy is None or not circuitpy.is_dir()):
+        raise RuntimeError('CIRCUITPY not found; connect a USB data cable or supply --boot-drive.')
     backup = ROOT / '.backups' / ('board-' + str(time.time_ns()))
     backup.mkdir(parents=True)
     if boot_drive:
@@ -35,7 +55,9 @@ def provision(boot_drive, circuitpy):
             if error.errno != errno.ENXIO or boot_drive.exists():
                 raise
         for _ in range(120):
-            if circuitpy.is_dir():
+            if circuitpy is None:
+                circuitpy = auto_detect_circuitpy()
+            if circuitpy is not None and circuitpy.is_dir():
                 break
             time.sleep(.5)
         else:
@@ -59,6 +81,6 @@ def provision(boot_drive, circuitpy):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--boot-drive', type=Path, help='Mounted NICENANO volume; downloads and flashes UF2')
-    parser.add_argument('--circuitpy', type=Path, default=Path('/Volumes/CIRCUITPY'))
+    parser.add_argument('--circuitpy', type=Path, default=None)
     args = parser.parse_args()
     provision(args.boot_drive, args.circuitpy)

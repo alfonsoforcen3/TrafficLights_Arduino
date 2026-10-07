@@ -53,3 +53,7 @@ Release the other Mac first. Run `python3 install.py --ble-name "first clawdy"` 
 ## Handoff record — 2026-10-06
 
 The user requested release from the original Mac. The disable command removed owned hooks and login service. Service absence and no TCP 8765 listener were verified. The board firmware/profile were not changed. The second laptop's installation, Bluetooth connection and visible searching blink have not yet been verified in this chat.
+
+## 2026-10-07 firmware verification handoff
+
+First Clawdy has green PWM dimming installed and visibly confirmed. The temporary Mac helper was stopped after BLE testing; Mac provider hooks/login service were not enabled. On Windows pull and run the full installer to refresh changed Gemini commands, review trust and verify live behavior. Follow [Windows installation](windows/INSTALL.md) and [run findings](windows/findings/2026-10-07-mac-integration.md). A corporate USB write restriction does not require reflashing during ordinary BLE setup.

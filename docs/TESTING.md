@@ -18,3 +18,7 @@ Hardware-free checks: `~/.local/share/trafficlights/venv/bin/python -m unittest 
 Current evidence: prototype visual colors confirmed by the user; real hooks and BLE GPIO signals verified; helper reconnect verified. Physical battery switching, runtime/charging, clean-customer onboarding and full Mac reboot remain separate acceptance tasks until recorded in CHANGELOG.md.
 
 Provider acceptance: follow docs/PROVIDERS.md for two same-provider chats and mixed-provider chats, verifying real hook dispatch and physical state. Claude/Gemini/Cursor installer and payload tests do not replace this acceptance.
+
+## PWM and Windows integration acceptance
+
+Green Q reports should include green_pwm_duty=32768 and green_pwm_frequency=5000 with the default profile. Confirm the LED visually as well; boolean GPIO reports alone do not prove brightness. Test Y through a real Gemini tool turn and G only after AfterAgent, including two concurrent chats. Native Windows startup and real-provider acceptance remain required for this revision. Local automated tests include quoting, profile preservation, ambiguity refusal and PWM validation; Windows CI is hardware-free. See [2026-10-07 findings](windows/findings/2026-10-07-mac-integration.md).

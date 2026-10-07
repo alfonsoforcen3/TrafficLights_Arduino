@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = Path.home() / '.local/share/trafficlights'
 SUPPORTED = ('codex','claude','gemini','cursor')
 EVENTS = {
-    'gemini': {'SessionStart':'G','BeforeAgent':'Y','BeforeModel':'Y',
+    'gemini': {'SessionStart':'G','BeforeAgent':'Y',
                'BeforeTool':'Y','AfterTool':'Y','AfterAgent':'G','Notification':'','SessionEnd':'O'},
     # Avoid Cursor permission/tool-gating hooks: this integration observes lifecycle only.
     'cursor': {'sessionStart':'G','beforeSubmitPrompt':'Y','afterAgentThought':'Y',
@@ -62,7 +62,10 @@ def remove_ours(data, provider):
             for group in groups:
                 group = dict(group)
                 group['hooks'] = [h for h in group.get('hooks',[])
-                                  if not h.get('name','').startswith('trafficlights-gemini-')]
+                                  if not (h.get('name','').startswith('trafficlights-gemini-')
+                                      or (h.get('name','').startswith('traffic-light-')
+                                          and 'traffic.py' in h.get('command','')
+                                          and '--provider gemini' in h.get('command','')))]
                 if group['hooks']: retained.append(group)
             if retained: data['hooks'][event] = retained
             else: del data['hooks'][event]
@@ -90,7 +93,7 @@ def configure(provider, enable=True):
     if enable and not python.exists(): raise RuntimeError('Install the shared desktop bridge first.')
     remove_ours(data,provider)
     if enable:
-        base = hook_command(python, ROOT/'scripts/traffic.py')
+        base = hook_command(python, ROOT/'scripts/traffic.py', powershell=provider == 'gemini')
         if provider == 'cursor': data.setdefault('version',1)
         for event,state in EVENTS[provider].items():
             command = base + (' ' + state if state else '') + ' --provider ' + provider

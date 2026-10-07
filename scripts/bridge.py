@@ -23,6 +23,7 @@ import json
 import time
 import socket
 import threading
+from pathlib import Path
 import serial
 import serial.tools.list_ports
 
@@ -274,7 +275,11 @@ def run_bridge():
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind((TCP_HOST, TCP_PORT))
+    try:
+        server.bind((TCP_HOST, TCP_PORT))
+    except OSError:
+        server.close()
+        raise RuntimeError('Bridge port 8765 is occupied; stop the existing companion or inspect the listener.')
     server.listen(10)
     server.settimeout(0.1)
 
@@ -309,11 +314,15 @@ def run_bridge():
 
     print(f"✅ Bridge TCP server listening on {TCP_HOST}:{TCP_PORT}...\n", flush=True)
 
+    pid_file = Path(STATE_FILE).parent / 'bridge.pid'
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(os.getpid()), encoding='ascii')
     try:
         while True:
             settle_transition()
             try:
                 client, _ = server.accept()
+                client.settimeout(2)
             except socket.timeout:
                 continue
             try:
@@ -421,6 +430,8 @@ def run_bridge():
     except KeyboardInterrupt:
         print("\nStopping bridge...", flush=True)
     finally:
+        if pid_file.exists() and pid_file.read_text(encoding='ascii') == str(os.getpid()):
+            pid_file.unlink()
         try:
             with ser_lock:
                 if ser_conn and ser_conn.is_open:

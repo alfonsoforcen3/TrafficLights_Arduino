@@ -64,3 +64,7 @@ Use a stable unique chat ID and lowercase provider namespace. Send both start an
 Run hardware-free tests, then start real conversations in each selected application. Submit work to A and B; finish A and ensure amber remains for B; finish B and ensure green settles. Repeat with provider mixes and input/error signals supported by each adapter. Confirm dispatch from the application as well as GPIO acknowledgements. Installation or synthetic payload tests alone do not establish live application support.
 
 References: [Claude Code hooks](https://code.claude.com/docs/en/hooks), [Gemini CLI hooks reference](https://geminicli.com/docs/hooks/reference/), [Cursor hooks](https://cursor.com/docs/hooks), [Codex hooks](https://learn.chatgpt.com/docs/hooks).
+
+## Windows shell and turn tracking update (2026-10-07)
+
+Gemini on native Windows uses PowerShell call-operator commands with literal quoted paths. POSIX/cmd.exe quoting is not interchangeable. The configured turn stays Y through BeforeAgent, BeforeTool and AfterTool and becomes G at AfterAgent; BeforeModel is omitted. Ownership cleanup preserves unrelated handlers. Mac tests and synthetic concurrent-session tracking passed; native Windows real-provider acceptance for this revision remains pending. Read [integration findings](windows/findings/2026-10-07-mac-integration.md) before promoting coverage.

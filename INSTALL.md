@@ -1,6 +1,6 @@
-> Native macOS/Windows auto-selection is now implemented. See [Windows installation](docs/windows/INSTALL.md) for current commands, reported evidence and pending native acceptance checks. Older macOS-only or Windows-pending statements below describe the earlier release.
+# Install the native desktop Bluetooth companion
 
-# Install the macOS Bluetooth build
+The installer detects macOS or Windows. Follow the Mac instructions below or the [Windows guide](docs/windows/INSTALL.md). Linux/WSL installation is unsupported.
 
 ## 1. Prerequisites
 
@@ -31,7 +31,7 @@ Confirm the hardware profile and LED wiring first. Enter the UF2 bootloader by d
 python3 scripts/flash_nicenano.py --boot-drive /Volumes/NICENANO
 ```
 
-This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, battery.py, connection_display.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
+This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, battery.py, connection_display.py, pwm_led.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
 
 If CIRCUITPY already runs the correct profile, update its files without downloading/reflashing:
 
