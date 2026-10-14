@@ -10,6 +10,8 @@ import usb_cdc
 import json
 from connection_display import ConnectionDisplay
 from pwm_led import PwmLED
+from session_count import SessionCount
+count_parser = SessionCount()
 
 def output(pin):
     led = digitalio.DigitalInOut(pin)
@@ -19,18 +21,29 @@ def output(pin):
 # Preserve the original wiring unless a per-unit profile explicitly selects another supported pin.
 green_pin = 'P0.10'
 green_brightness = 0.5
+amber_pin = 'P1.11'
+red_pin = 'P1.13'
+config = {}
 try:
     with open('/hardware_config.json') as config_file:
         config = json.load(config_file)
     green_pin = config.get('green_pin', green_pin)
     green_brightness = config.get('green_brightness', green_brightness)
+    amber_pin = config.get('amber_pin', amber_pin)
+    red_pin = config.get('red_pin', red_pin)
 except OSError:
     pass
-if green_pin not in ('P0.10', 'P0.06', 'P0.09'):
+if green_pin not in ('P0.10', 'P0.06', 'P0.09', 'P1.11'):
     raise ValueError('Unsupported green pin profile: ' + str(green_pin))
+if amber_pin not in ('P1.11', 'P0.10') or red_pin not in ('P1.13', 'P0.09'):
+    raise ValueError('Unsupported amber/red wiring profile')
+if len(set((green_pin, amber_pin, red_pin))) != 3:
+    raise ValueError('LED pins must be distinct')
+if config.get('oled_enabled') and set((green_pin, amber_pin, red_pin)) & {'P0.20', 'P0.22'}:
+    raise ValueError('OLED pins conflict with LEDs')
 green = PwmLED(getattr(microcontroller.pin, green_pin.replace('.', '_')), green_brightness)
-amber = output(microcontroller.pin.P1_11)
-red = output(microcontroller.pin.P1_13)
+amber = output(getattr(microcontroller.pin, amber_pin.replace('.', '_')))
+red = output(getattr(microcontroller.pin, red_pin.replace('.', '_')))
 port = usb_cdc.data
 port.timeout = 0
 port.write_timeout = 0.1
@@ -43,6 +56,13 @@ ble = None
 ble_error = None
 battery = None
 battery_error = None
+oled = None
+oled_error = None
+if config.get('oled_enabled', False):
+    try:
+        import oled_display as oled
+    except Exception as error:
+        oled_error = str(error)
 try:
     from battery import Battery
     battery = Battery()
@@ -65,8 +85,12 @@ def set_lights(g=False, y=False, r=False):
 def report(transport='usb'):
     data = (json.dumps({'firmware': 'traffic-nicenano-v1', 'mode': mode,
                         'display_phase': display_phase, 'green_pwm_duty': green.max_duty,
-                        'green_pwm_frequency': 5000, 'green_pin': green_pin, green_pin: green.value, 'P1.11': amber.value,
-                        'P1.13': red.value, 'transport': transport,
+                        'green_pwm_frequency': 5000, 'green_pin': green_pin, 'amber_pin': amber_pin, 'red_pin': red_pin,
+                        green_pin: green.value, amber_pin: amber.value, red_pin: red.value,
+                        'oled_error': oled.error if oled else oled_error, 'transport': transport,
+                        'session_count': count_parser.count if ble and ble.connected else None,
+                        'session_count_kind': 'working',
+                        'working_provider_mask': count_parser.provider_mask if ble and ble.connected else 0,
                         'ble_name': ble.name if ble else None,
                         'ble_error': ble_error,
                         'battery': battery.sample() if battery else None,
@@ -94,7 +118,11 @@ while True:
         sources.append(('usb', port.read(port.in_waiting)))
     if ble:
         sources.append(('ble', ble.poll()))
+    if not (ble and ble.connected):
+        count_parser.reset()
     for transport, commands in sources:
+        if transport == "ble":
+            commands = count_parser.feed(commands)
         for cmd in commands.decode('utf-8').upper():
             if cmd == 'X' and transport == 'usb':
                 microcontroller.reset()  # Local maintenance reset; never exposed over BLE.
@@ -130,4 +158,6 @@ while True:
         set_lights(*lights)
     if changed and ble and ble.connected:
         report('ble')
+    if oled:
+        oled.update(time.monotonic(), mode, bool(ble and ble.connected), count_parser.count, count_parser.provider_mask)
     time.sleep(0.01)

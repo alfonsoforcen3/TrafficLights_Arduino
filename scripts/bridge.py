@@ -263,6 +263,19 @@ def is_hardware_connected():
     with ser_lock:
         return ser_conn is not None and ser_conn.is_open
 
+def working_session_count():
+    """Count only turns currently working, excluding ready/input/error records."""
+    return sum(session["state"] == "Y" for session in tuple(active_sessions.values()))
+
+def working_provider_mask():
+    """Application identity from hook namespaces, never guessed model identity."""
+    mask = 0
+    for sid, session in tuple(active_sessions.items()):
+        if session['state'] == 'Y':
+            provider = sid.split(':', 1)[0]
+            mask |= {'claude': 1, 'codex': 2, 'gemini': 4}.get(provider, 8)
+    return mask
+
 def get_active_port():
     if TRANSPORT == 'ble':
         return ('ble://' + bluetooth_link.peer) if is_hardware_connected() else None
@@ -306,7 +319,9 @@ def run_bridge():
             dashboard.received(report)
             hardware_synced = report is not None
         bluetooth_link = BluetoothLink(os.environ.get('TRAFFIC_BLE_NAME') or connection_config['ble_name'],
-                                       lambda: current_hardware_state, received)
+                                       lambda: current_hardware_state, received,
+                                       get_session_count=working_session_count,
+                                       get_provider_mask=working_provider_mask)
         bluetooth_link.start()
     else:
         watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)

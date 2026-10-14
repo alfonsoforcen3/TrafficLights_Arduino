@@ -1,5 +1,9 @@
 # Native Windows installation
 
+For the shared activation/update/removal walkthrough and OLED behavior, see
+[Install and activate](../INSTALL_ACTIVATE.md). Native Windows acceptance of the
+OLED/provider-icon/BLE-write revision remains pending.
+
 Use native Windows Python 3.9 or newer (64-bit recommended), with pip and venv. WSL is not supported. Install Git to clone the repository. Keep the clone at a stable path without percent signs or quotes. No administrator privileges are required by the companion installer.
 
 Turn off or disable the companion on the old laptop before switching laptops. Enable Bluetooth on Windows. A shipped First Clawdy already has firmware: do not reflash it or pair it as an audio device in Settings. The companion discovers its BLE advertisement directly.

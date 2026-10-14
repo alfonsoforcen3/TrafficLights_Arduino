@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-14 — OLED Clawdy and stable BLE writes
+
+- Added optional SSD1306-compatible OLED animations with the 45 mm Clawdy proportions, red × eyes, rotating funny comments, larger top title, top working-only WIP count and smaller provider marks below.
+- Added per-unit red/amber/green wiring overrides, preserving default profiles; original OLED unit uses P0.09 red / P0.10 amber / P1.11 green and owner-requested full green PWM duty.
+- Sent bounded working counts/provider masks over BLE with incremental parsing and disconnect reset; multiple working provider icons rotate. Application identity comes from hooks, not browser/model detection.
+- Serialized Mac BLE writes to avoid overlapping CoreBluetooth pending writes; exception types now appear in connection diagnostics.
+- Added Mac/Windows installation, activation, update and removal instructions, plus explicit unsupported Linux/WSL status and hardware-free contributor checks.
+
+Evidence: 49 local hardware-free tests pass; BLE R/Y/G/B/O and working/provider metadata acknowledged on Mac; 120-second concurrent-write observation had zero disconnect/startup/log errors. Owner confirmed LEDs, OLED animations and that repeated startup blinking stopped for now. Windows native acceptance, Linux activation, physical power cycles, Mac restart and extended uptime remain unverified. See [run findings](docs/findings/2026-10-13-ble-write-stability.md).
+
 ## 2026-10-01 — macOS Bluetooth tester iteration
 
 - Added nice!nano-compatible nRF52840 CircuitPython firmware; corrected final wiring to P0.10 green, P1.11 amber, P1.13 red.

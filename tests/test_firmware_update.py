@@ -52,6 +52,9 @@ class FirmwareUpdateTests(unittest.TestCase):
                 sources = [call.args[0].name for call in copy.call_args_list]
                 self.assertLess(next(i for i,s in enumerate(sources) if s == 'pwm_led.py'),
                                 next(i for i,s in enumerate(sources) if s == 'code.py'))
+                self.assertLess(sources.index('provider_icons.py'), sources.index('oled_display.py'))
+                self.assertLess(sources.index('oled_display.py'), sources.index('code.py'))
+                self.assertLess(sources.index('session_count.py'), sources.index('code.py'))
             self.assertEqual((drive/'hardware_config.json').read_text(), profile)
 
     def test_powershell_literal_paths_and_legacy_hook_ownership(self):

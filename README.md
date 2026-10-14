@@ -4,9 +4,11 @@
 
 A Bluetooth desk light for your local AI agents. See when work is running, when attention is needed, and when your tracked chats have finished—without watching every window.
 
-**macOS tester preview** · nRF52840 hardware · Multiple chats and providers · Local status only
+**Native desktop tester preview** · Mac verified · Windows acceptance pending · Linux unsupported
 
-[Public customer setup](https://github.com/alfonsoforcen3/TrafficLights_Setup) · [Maintainer/tester installation](INSTALL.md) · [Provider integrations](docs/PROVIDERS.md) · [Documentation](docs/README.md) · [Release readiness](docs/RELEASE_READINESS.md)
+nRF52840 hardware · OLED reactions · Working-session count · Local provider icons
+
+[Public customer setup](https://github.com/alfonsoforcen3/TrafficLights_Setup) · [Install and activate: Mac / Windows / Linux status](docs/INSTALL_ACTIVATE.md) · [Factory/maintainer installation](INSTALL.md) · [Provider integrations](docs/PROVIDERS.md) · [Documentation](docs/README.md) · [Release readiness](docs/RELEASE_READINESS.md)
 
 ## One light, all your tracked chats
 
@@ -23,7 +25,7 @@ Each chat has a separate provider/session record. The shared light prioritizes *
 
 The source workflow below requires authorized access to this private repository. Customer documentation lives in [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup); a standalone signed consumer installer is still pending.
 
-Boards should ship wired, flashed, tested, and labelled with their Bluetooth name. Customers install the Mac companion and approve local access; routine operation needs no USB data connection.
+Boards should ship wired, flashed, tested, and labelled with their Bluetooth name. Testers install the native Mac or Windows companion and approve local access; routine operation needs no USB data connection.
 
 ```bash
 git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git

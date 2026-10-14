@@ -6,7 +6,8 @@
 | CircuitPython 8.1.0 / UF2 bootloader 0.6.0 | Verified combination |
 | macOS 26.6.2 / Apple Python 3.9.6 | Verified host |
 | Local Codex hooks | Verified real prompt/stop dispatch |
-| BLE colors / explicit error / automatic helper reconnect | Verified |
+| BLE colors / explicit error / automatic helper reconnect | Verified; serialized writes passed a two-minute Mac stress run |
+| OLED Clawdy / working count / provider icons | Original nice_nano unit verified on Mac; native Windows acceptance pending |
 | Other Python/macOS versions | Require acceptance tests |
 | Native Windows automatic installation | Implemented; previous Windows BLE reported by owner, current revision native acceptance pending |
 | Linux/WSL automatic installation | Unsupported |

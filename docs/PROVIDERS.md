@@ -57,7 +57,7 @@ A custom application or model-API wrapper can signal the same bridge explicitly:
 # When fully finished: G; waiting for input: B; explicit error: R; session closed: O.
 ```
 
-Use a stable unique chat ID and lowercase provider namespace. Send both start and completion/close events; missing events leave stale records. Only state and IDs reach the local bridge, and only colour/GPIO data reaches BLE. Raw hook prompts/transcripts are not logged or forwarded. The localhost bridge is unauthenticated and intended only for local indicator control; do not expose port 8765 to the network.
+Use a stable unique chat ID and lowercase provider namespace. Send both start and completion/close events; missing events leave stale records. Only state and IDs reach the local bridge, and only colour/GPIO data, working-session totals and provider flags reach BLE. Raw hook prompts/transcripts are not logged or forwarded. The localhost bridge is unauthenticated and intended only for local indicator control; do not expose port 8765 to the network.
 
 ## Acceptance tests
 

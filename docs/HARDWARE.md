@@ -52,3 +52,76 @@ Validation on first clawdy: searching reports included simultaneous all-on and a
 ## Green PWM brightness
 
 As of 2026-10-07 green uses 5 kHz PWM at 50% duty by default; red and amber retain full digital intensity. `hardware_config.json` may include `"green_brightness": 0.5` (finite range 0–1). A value of 1 restores full green duty; 0 suppresses green illumination. Default applies to supported green profiles, not just First Clawdy. Reports expose green_pwm_duty and green_pwm_frequency alongside boolean GPIO intent; they do not measure emitted brightness. Preserve the per-unit profile when updating. First Clawdy passed BLE R/Y/G/B/O; the owner confirmed all lit and green looked good. See [integration findings](windows/findings/2026-10-07-mac-integration.md).
+
+## OLED-equipped original unit — 2026-10-11
+
+This unit was identified directly over USB as nice_nano, CircuitPython 8.1.0,
+UID ending 16DE. Its actual BLE name is `TrafficLight-16DE`; this is separate
+from first clawdy. Owner-confirmed wiring is red P0.09 (`009`), amber P0.10
+(`010`), green P1.11 (`111`). Its explicit per-unit profile is:
+
+```json
+{"red_pin":"P0.09","amber_pin":"P0.10","green_pin":"P1.11","green_brightness":1.0,"oled_enabled":true}
+```
+
+The owner requested full green PWM duty: 65535 at 5 kHz. Existing default
+profiles retain 50% duty and their original wiring. Red/amber overrides accept
+only the documented original or this unit's pins; LED pins must be distinct.
+
+The four-pin OLED connects GND → GND, VCC → 3.3 V, SCL → P0.20 (`020`),
+SDA → P0.22 (`022`). It responds at 0x3C and successfully displayed an
+SSD1306-compatible 128×64 framebuffer; the actual controller/vendor remains
+unconfirmed. Do not infer a module's pin order from another supplier's photo.
+`oled_display.py` is optional, enabled only by the profile, and must precede
+`code.py` when copying firmware. A display failure is reported as `oled_error`
+and does not disable LED/BLE handling. The drawing scales the 45 mm model's
+front silhouette uniformly, including four quarter-height legs. Yellow thinks,
+green bounces, red shakes with × eyes, blinking red requests input, and an
+unconnected board displays LOOKING / FOR HOST. Comments describe aggregate
+colour status, not task content or provider identity. No transcripts go to BLE.
+
+See [Mac/OLED verification](findings/2026-10-11-oled-mac.md) for current limits.
+
+### OLED session count — 2026-10-13
+
+The BLE bridge sends `N<count>\n` before its three-second state heartbeat.
+`session_count.py` parses fragmented metadata without treating it as a colour
+command, and is installed before code.py. Existing colour commands are retained.
+The right-column title reads `Clawdy`. At the top left in the OLED yellow band, one centered line
+shows `N WIP` (up to `9999 WIP`), with a smaller provider graphic below. Unknown/disconnected counts show `-- WIP`; the right status
+text shows LOOKING / FOR HOST when disconnected. The last count is cleared
+on disconnect. Only numeric totals and provider flags are transmitted; no session identifiers
+or chat content are sent to the board. Wire totals are capped at 9999.
+
+The total counts only hook-reported working (`Y`) sessions across providers.
+Ready (`G`), input-waiting (`B`) and errored (`R`) sessions are excluded. It is
+not a count of open UI windows. Abandoned working records still follow the
+existing 24-hour expiry policy. Colour continues to reflect the most urgent
+tracked state, so a blinking red light can coexist with other working sessions.
+The report exposes `session_count` and `session_count_kind=working` for
+verification. USB-only host transport does not send this BLE metadata.
+
+### Working-provider icons — 2026-10-13
+
+BLE metadata also includes `P<mask>\n`, with bits Claude=1, Codex/OpenAI=2,
+Gemini=4, other/unknown=8. Only Y sessions contribute; their provider comes from
+the existing hook namespace. The board reports `working_provider_mask`.
+Multiple working providers rotate every five seconds alongside phrase changes;
+one provider's ready/input/error state removes it from this working mask. When
+none is working or BLE is disconnected, Clawdy returns as the neutral companion.
+The right title remains Clawdy and the top-left line remains the total `N WIP`.
+
+Claude displays the owner-approved Clawdy animation. Codex displays a monochrome
+OpenAI Blossom with CODEX label; Gemini displays a code-drawn monochrome star
+with GEMINI label. Other/unknown providers show a neutral question mark, never a
+model inferred from Cursor's application name. Logo shapes remain static with
+a small moving progress dot; Claude retains its expression/movement reactions.
+`provider_icons.py` must be copied before oled_display.py and code.py.
+
+This identifies local applications, not models or browser tabs. Ordinary ChatGPT,
+Claude and Gemini web conversations still have no hook integration here. A
+Gemini CLI install needs its normal configured/reviewed hooks; displaying a
+synthetic Gemini signal is not real-provider acceptance. No new provider was
+installed by this update. Only masks/counts/status go to BLE, not identifiers or
+transcripts. The OpenAI mark is rasterized from the [official cookbook asset](https://github.com/openai/openai-cookbook/blob/main/examples/voice_solutions/realtime_translation_guide/livekit-translation-demo/public/brand/chatgpt-blossom-white.svg);
+logos remain their owners' marks and are used here as provider identification.

@@ -24,7 +24,7 @@ def verify(transport):
                         raise AssertionError('Board acknowledgement used the wrong transport: ' + str(report))
                     if mode != 'B':
                         expected = [mode == 'G', mode == 'Y', mode == 'R']
-                        assert [report[report.get('green_pin', 'P0.10')], report['P1.11'], report['P1.13']] == expected, report
+                        assert [report[report.get('green_pin', 'P0.10')], report[report.get('amber_pin', 'P1.11')], report[report.get('red_pin', 'P1.13')]] == expected, report
                     print('Confirmed', mode, report, flush=True)
                     time.sleep(1)
                     break

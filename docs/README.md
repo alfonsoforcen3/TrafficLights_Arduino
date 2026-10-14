@@ -4,7 +4,8 @@ Choose the path that matches what you need to do.
 
 | I want to… | Start here |
 | --- | --- |
-| Set up a pre-flashed unit on my Mac | [Installation](../INSTALL.md) |
+| Install, activate, update or disable on Mac/Windows; check Linux limits | [Install and activate](INSTALL_ACTIVATE.md) |
+| Set up or recover board firmware | [Factory installation](../INSTALL.md) |
 | Have my AI agent install it | [Agent instructions](../AGENTS.md) |
 | Connect my local AI tools | [Providers and discovery](PROVIDERS.md) |
 | Understand multiple simultaneous chats | [Chat priority and timing](MULTIPLE_CHATS.md) |
