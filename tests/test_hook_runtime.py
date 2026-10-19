@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import importlib.util
 import io
 import json
@@ -13,6 +14,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from scripts import migrate_hook_runtime as migration
 
@@ -36,6 +38,98 @@ class HookRuntimeTests(unittest.TestCase):
                 self.assertLess(time.monotonic()-started, .5)
         finally:
             os.close(writer)
+
+    def test_partial_pipe_input_times_out_without_a_background_reader(self):
+        reader, writer = os.pipe()
+        try:
+            os.write(writer,b'{"session_id":')
+            with os.fdopen(reader,'r') as stream, \
+                    patch.object(threading.Thread,'start',side_effect=AssertionError('No background stdin reader')):
+                self.assertEqual(traffic.read_payload(stream,timeout=.01),{})
+            # Stream close above occurs while the writer is still open. On
+            # Windows this used to deadlock against a daemon CRT os.read lock.
+        finally:
+            os.close(writer)
+
+    def test_pipe_eof_and_payload_size_limit(self):
+        reader, writer = os.pipe()
+        os.close(writer)
+        with os.fdopen(reader,'r') as stream:
+            self.assertEqual(traffic.read_payload(stream),{})
+        reader, writer = os.pipe()
+        try:
+            os.write(writer,b'{"session_id":"too long"}')
+            with os.fdopen(reader,'r') as stream:
+                self.assertEqual(traffic.read_payload(stream,max_bytes=8),{})
+        finally:
+            os.close(writer)
+
+    def test_complete_pipe_json_with_trailing_cr_does_not_wait_for_more_text(self):
+        reader, writer = os.pipe()
+        try:
+            # A CRT text-mode read can perform CRLF lookahead after this final
+            # CR. The Windows implementation deliberately uses raw ReadFile.
+            os.write(writer,b'{"session_id":"raw"}\r')
+            with os.fdopen(reader,'r') as stream:
+                self.assertEqual(traffic.read_payload(stream),{'session_id':'raw'})
+        finally:
+            os.close(writer)
+
+    def test_windows_api_reads_only_available_bytes_and_bypasses_crt(self):
+        events=[]
+        data=bytearray(b'{"session_id":"windows"}\r')
+        state={'first':True}
+        class Function:
+            def __init__(self,call): self.call=call
+            def __call__(self,*args): return self.call(*args)
+        def peek(handle,_buffer,_size,_received,available,_left):
+            self.assertEqual(handle.value,12345)
+            if state['first']:
+                state['first']=False
+                available._obj.value=0
+                events.append(('peek',0))
+            else:
+                available._obj.value=len(data)
+                events.append(('peek',len(data)))
+            return 1
+        def read(_handle,buffer,size,received,_overlapped):
+            self.assertLessEqual(size,len(data))
+            events.append(('read',size))
+            chunk=bytes(data[:size]);del data[:size]
+            ctypes.memmove(buffer,chunk,len(chunk))
+            received._obj.value=len(chunk)
+            return 1
+        kernel=SimpleNamespace(PeekNamedPipe=Function(peek),ReadFile=Function(read))
+        reader, writer=os.pipe()
+        try:
+            with os.fdopen(reader,'r') as stream, \
+                    patch.object(traffic.sys,'platform','win32'), \
+                    patch.dict(sys.modules,{'msvcrt':SimpleNamespace(get_osfhandle=lambda fd:12345)}), \
+                    patch.object(ctypes,'WinDLL',return_value=kernel,create=True), \
+                    patch.object(traffic.time,'sleep'), \
+                    patch.object(traffic.os,'read',side_effect=AssertionError('CRT read must not be used')):
+                self.assertEqual(traffic.read_payload(stream),{'session_id':'windows'})
+        finally:
+            os.close(writer)
+        self.assertEqual(events[0],('peek',0))
+        self.assertEqual([e[0] for e in events],['peek','peek','read'])
+
+    def test_windows_broken_pipe_is_eof_and_bad_handles_fail_open(self):
+        class Function:
+            def __call__(self,*args): return 0
+        kernel=SimpleNamespace(PeekNamedPipe=Function(),ReadFile=Function())
+        for error in (109,232,6):
+            with self.subTest(error=error):
+                reader, writer=os.pipe()
+                try:
+                    with os.fdopen(reader,'r') as stream, \
+                            patch.object(traffic.sys,'platform','win32'), \
+                            patch.dict(sys.modules,{'msvcrt':SimpleNamespace(get_osfhandle=lambda fd:12345)}), \
+                            patch.object(ctypes,'WinDLL',return_value=kernel,create=True), \
+                            patch.object(ctypes,'get_last_error',return_value=error,create=True):
+                        self.assertEqual(traffic.read_payload(stream),{})
+                finally:
+                    os.close(writer)
 
     def test_complete_json_does_not_wait_for_eof(self):
         reader, writer = os.pipe()
@@ -108,17 +202,17 @@ class HookRuntimeTests(unittest.TestCase):
                     message = ready.get(timeout=10)
                 except queue.Empty:
                     self.fail('Child did not complete interpreter/import startup within 10 seconds')
-                self.assertEqual(message,b'READY\n')
+                self.assertEqual(message.rstrip(b'\r\n'),b'READY')
                 reader.join(timeout=1)
                 self.assertFalse(reader.is_alive())
                 process.stdin.write(b'!')
                 process.stdin.flush()
                 # Do not close stdin: this specifically tests bounded reads and
-                # daemon-reader shutdown with the provider pipe left open.
+                # stdin close/shutdown with the provider pipe left open.
                 process.wait(timeout=2)
                 self.assertFalse(process.stdin.closed)
                 self.assertEqual(process.returncode,0)
-                self.assertEqual(process.stdout.read(),b'{}\n')
+                self.assertEqual(process.stdout.read().splitlines(),[b'{}'])
                 self.assertEqual(process.stderr.read(),b'')
             finally:
                 if process.poll() is None:
@@ -152,7 +246,7 @@ class HookRuntimeTests(unittest.TestCase):
                 event=next(iter(updated['hooks']))
                 hook=updated['hooks'][event][0] if provider=='cursor' else updated['hooks'][event][0]['hooks'][0]
                 self.assertFalse(hook['enabled'])
-                self.assertIn('/runtime/traffic.py',hook['command'])
+                self.assertIn(str(Path('/runtime/traffic.py')),hook['command'])
                 self.assertEqual({k:v for k,v in updated.items() if k!='hooks'},
                                  {k:v for k,v in data.items() if k!='hooks'})
 

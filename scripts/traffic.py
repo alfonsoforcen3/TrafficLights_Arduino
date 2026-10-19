@@ -13,8 +13,8 @@ import sys
 import json
 import socket
 import io
-import queue
-import threading
+import select
+import time
 
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
@@ -77,11 +77,57 @@ def log(_message):
     pass
 
 
-def read_payload(stream=None, timeout=0.2, max_bytes=1024 * 1024):
-    """Read one bounded JSON payload without waiting forever for pipe EOF.
+def windows_pipe_reader(descriptor):
+    """Return a single-threaded raw pipe reader, avoiding Windows CRT read locks.
 
-    Raw descriptor reads avoid leaving a Python buffered-stdin lock held by a
-    daemon reader at interpreter shutdown. No hardware or file I/O is attempted.
+    PeekNamedPipe reports available bytes. ReadFile consumes only those bytes,
+    bypassing CRT text-mode CRLF lookahead (which can block even after a peek).
+    The hook owns the sole reader; invalid/non-pipe handles fail open.
+    """
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    peek = kernel.PeekNamedPipe
+    peek.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+                     ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+                     ctypes.POINTER(wintypes.DWORD)]
+    peek.restype = wintypes.BOOL
+    read = kernel.ReadFile
+    read.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD,
+                     ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID]
+    read.restype = wintypes.BOOL
+    handle = wintypes.HANDLE(msvcrt.get_osfhandle(descriptor))
+    def chunk(limit, deadline):
+        while time.monotonic() < deadline:
+            available = wintypes.DWORD()
+            if not peek(handle, None, 0, None, ctypes.byref(available), None):
+                error = ctypes.get_last_error()
+                if error in (109, 232):  # ERROR_BROKEN_PIPE / ERROR_NO_DATA
+                    return b''
+                raise OSError(error, 'Cannot inspect stdin pipe')
+            if available.value:
+                size = min(limit, available.value)
+                buffer = ctypes.create_string_buffer(size)
+                received = wintypes.DWORD()
+                if not read(handle, buffer, size, ctypes.byref(received), None):
+                    error = ctypes.get_last_error()
+                    if error in (109, 232):
+                        return b''
+                    raise OSError(error, 'Cannot read stdin pipe')
+                return buffer.raw[:received.value]
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(.005, remaining))
+        return None
+    return chunk
+
+
+def read_payload(stream=None, timeout=0.2, max_bytes=1024 * 1024):
+    """Read bounded JSON from stdin without a background reader or waiting for EOF.
+
+    POSIX pipes use select; Windows pipes use PeekNamedPipe/ReadFile. Returning
+    leaves no pending read holding the descriptor open or blocking its close.
     """
     stream = sys.stdin if stream is None else stream
     try:
@@ -100,36 +146,31 @@ def read_payload(stream=None, timeout=0.2, max_bytes=1024 * 1024):
             return {}
     try:
         descriptor = stream.fileno()
-    except (AttributeError, OSError, ValueError):
-        return {}
-    result = queue.Queue(maxsize=1)
-    def reader():
+        windows_read = windows_pipe_reader(descriptor) if sys.platform == 'win32' else None
+        deadline = time.monotonic() + timeout
         raw = bytearray()
-        try:
-            while len(raw) <= max_bytes:
-                chunk = os.read(descriptor, min(65536, max_bytes + 1 - len(raw)))
-                if not chunk:
+        while len(raw) <= max_bytes and time.monotonic() < deadline:
+            limit = min(65536, max_bytes + 1 - len(raw))
+            if windows_read is not None:
+                chunk = windows_read(limit, deadline)
+            else:
+                ready, _, _ = select.select([descriptor], [], [], max(0, deadline - time.monotonic()))
+                if not ready:
                     break
-                raw.extend(chunk)
-                if len(raw) > max_bytes:
-                    break
-                try:
-                    value = json.loads(raw)
-                    result.put_nowait(value if isinstance(value, dict) else {})
-                    return
-                except (ValueError, UnicodeError):
-                    pass
-            result.put_nowait({})
-        except (OSError, ValueError, queue.Full):
+                chunk = os.read(descriptor, limit)
+            if not chunk:
+                break
+            raw.extend(chunk)
+            if len(raw) > max_bytes:
+                break
             try:
-                result.put_nowait({})
-            except queue.Full:
+                value = json.loads(raw)
+                return value if isinstance(value, dict) else {}
+            except (ValueError, UnicodeError):
                 pass
-    threading.Thread(target=reader, daemon=True).start()
-    try:
-        return result.get(timeout=timeout)
-    except queue.Empty:
-        return {}
+    except (AttributeError, ImportError, OSError, ValueError):
+        pass
+    return {}
 
 
 def send_via_tcp(session_id, char_code):

@@ -35,3 +35,12 @@ Final local validation: 138 hardware-free tests passed in 6.474 seconds.
 The customer bundle was rebuilt after wizard changes. Local documentation links
 and whitespace checks passed; browser console reported no errors. Publication
 remains separate from this private commit/push.
+
+The first hosted run passed Mac/Linux but exposed a Windows pipe-read deadlock
+in the observer and three tests assuming Unix paths. That run was cancelled.
+The observer now uses POSIX readiness polling and Windows PeekNamedPipe/ReadFile,
+with no background stdin reader. Tests cover empty/partial pipes, EOF, size
+bounds, CRLF handling and native paths. All 143 integrated tests passed locally
+after the fix; the follow-up push receives a fresh hosted run. Runtime observer
+copy and the private customer bundle were refreshed without starting the bridge
+or connecting hardware. Native Windows BLE/provider acceptance is still pending.
