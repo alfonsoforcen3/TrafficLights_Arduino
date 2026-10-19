@@ -22,3 +22,27 @@ Provider acceptance: follow docs/PROVIDERS.md for two same-provider chats and mi
 ## PWM and Windows integration acceptance
 
 Green Q reports should include green_pwm_duty=32768 and green_pwm_frequency=5000 with the default profile. Confirm the LED visually as well; boolean GPIO reports alone do not prove brightness. Test Y through a real Gemini tool turn and G only after AfterAgent, including two concurrent chats. Native Windows startup and real-provider acceptance remain required for this revision. Local automated tests include quoting, profile preservation, ambiguity refusal and PWM validation; Windows CI is hardware-free. See [2026-10-07 findings](windows/findings/2026-10-07-mac-integration.md).
+# Customer enrollment candidate acceptance
+
+The new enrollment code is hardware-free tested only. Before customer release:
+
+1. Use the exact private candidate ZIP on a clean native Mac account. Power a
+   factory-flashed toy externally, with no USB data path to the laptop.
+2. Run `install.py --onboard`. Verify dependency/permission prompts, provider
+   choice, physical identification and cancellation before mutation.
+3. Repeat with two toys in the room and duplicate initial names. Confirm explicit
+   selection and that only the intended unit changes. The normal bridge must
+   refuse duplicate names rather than pick the first one.
+4. Choose laptop + nickname; record the generated name and full device ID. Power
+   the toy off/on and confirm persisted name, matching identity and reconnect.
+5. Preserve the exact wiring/OLED profile through factory update and rename.
+   Test old firmware `--keep-name`; unsupported rename must stop honestly.
+6. Require BLE GPIO acknowledgements and visible LEDs, then real prompt/finish
+   and supported attention/error signals from each selected provider.
+7. Verify repeat install, disabled/malformed provider preferences, an interrupted
+   install, old-host release, reassign, login/reboot and removal/reinstall.
+8. Qualify ESP32-C3 separately with confirmed GPIO/polarity and compiled factory
+   firmware. Host protocol recognition is not ESP32 electrical acceptance.
+
+The wizard can require physical confirmation, but it cannot infer human visual
+evidence from a GPIO response. Do not record skipped steps as passed.

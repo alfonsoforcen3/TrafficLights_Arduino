@@ -1,5 +1,28 @@
 # Agent installation and maintenance instructions
 
+## Project coordination
+
+The owner uses Alex — CEO & Project Coordination as the single project contact.
+For multi-area project work, route bounded assignments to the existing specialist
+chats; specialists may use subagents when useful and should choose lighter models
+for routine tasks. Assign file ownership to avoid concurrent edits.
+
+The coordinating agent must collect each assigned worker's report, review its
+evidence, integrate fixes and run relevant checks before sending a final response.
+A dispatch or acknowledgment is not completion. Keep waiting with bounded
+wait_threads calls and provide progress updates while workers are active. If a
+physical/user action prevents further verification, report that specific limit
+after completing independent work. Never use traffic-light hooks to force model
+continuation or change application permissions; they are status observers only.
+
+Customer onboarding candidate: when asked to set up a powered, pre-flashed
+Clawdy, read docs/CUSTOMER_SETUP.md and use `python3 install.py --onboard` for
+Bluetooth discovery and explicit selection; USB discovery is only the legacy
+maintainer path. Do not assume rename support on already-shipped firmware.
+New firmware advertises hardware family, immutable identity and rename capability.
+Keep candidate bundles and website changes private until the owner requests release.
+No physical customer acceptance has been established by the new hardware-free tests.
+
 Use this workflow when a user asks to install or update this repository. Do not execute installation merely because you opened the repository.
 
 1. Read INSTALL.md, docs/COMPATIBILITY.md, and docs/HARDWARE.md. The physical profile tested here is macOS + a nice!nano-compatible nRF52840 + local Codex/Work. Never claim cross-platform installation or ordinary ChatGPT chat support.

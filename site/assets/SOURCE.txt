@@ -1,0 +1,18 @@
+CLAWDY WEBSITE HERO — 2026-10-19
+
+Source: independent claude-mascot-3d repository, existing actual 45 mm integrated review model in models/stl/review-45mm-integrated/.
+Rendered directly from the aligned, unchanged binary STL triangles, assembled (no exploded offsets). Mascot 45 mm tall; traffic-light post 66 mm tall. Existing four rectangular legs, two black eyes, terracotta shell and black post preserved. No AI-generated or remodeled silhouette.
+The three LED colours are applied to the generator's existing led_reference_DO_NOT_PRINT.stl geometry (5 mm nominal LEDs, centres Z27/42/57). These are illustrative colours, not measured emitted brightness or a claim that all three lights illuminate together.
+
+Image: transparent RGBA PNG; orthographic front three-quarter camera [1.05,2.5,0.95]; directional shading. Render is a CAD illustration, not a photograph. Exact print texture/material colour, physical fit, current electronics and production readiness are not established by this image. No CAD/STL/manufacturer files are exported into the website. Independent CAD repository not modified. Private site asset only.
+
+Read-only geometry inputs and SHA-256:
+main_terracotta.stl  7ab8963fd353505c5e0d738143ffce2f7491bf98fa985810fe4b3334f365941d
+main_black_post.stl  d50af3a21e1bb617e72c9c171c2199120c17e95d7d53b7dd5202a95927f11446
+body_rear_cover.stl  25f6a2167d4257366270ccf8ca6be11069c8ce7f1b1d560c832c67f8c033e35b
+post_rear_cover.stl  6e3de9839f93ac71859bc78ec0d725dafe7343ba59b070579933538f10eb3e7c
+eyes.stl  f9e213d03c59a1312e68bfe1d060962a47126ee923cddef0598d74e60caaaabe
+rear_qr_black.stl  8a31a7d655c59f9a03ab44f1b6f676064639b9f74a8f9c1e16bc5873ebdbc4c2
+led_reference_DO_NOT_PRINT.stl  0b75102d15c4acab90936dcd617957c91777336da70852baff0aa7814474c352
+
+PNG dimensions: 1940 x 1696; RGBA transparent background.

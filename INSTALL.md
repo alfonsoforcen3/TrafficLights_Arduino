@@ -23,7 +23,10 @@ git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
 cd TrafficLights_Arduino
 ```
 
-Keep this directory: hook commands refer to its absolute local path. Read AGENTS.md before changing the user's environment.
+Keep this directory for updates/recovery. New hook commands run the copied
+observer in the local runtime; older installations may still refer to this
+checkout and can use scripts/migrate_hook_runtime.py after normal review.
+Read AGENTS.md before changing the user's environment.
 
 **Shipped pre-flashed unit:** power it on and skip to step 4, using the Bluetooth name printed on its label. No USB data connection or flashing is required for normal customer setup.
 
@@ -46,6 +49,13 @@ python3 scripts/flash_nicenano.py
 **Press RESET once or unplug/replug after provisioning**, so boot.py enables the dedicated USB data port. Never disconnect while files are being copied. See [hardware](docs/HARDWARE.md) for sources, checksum, backup and recovery.
 
 ## 4. Install the host bridge and hooks
+
+For the private customer terminal onboarding candidate, use
+`python3 install.py --onboard`. It can discover a powered, pre-flashed toy without
+USB data, explicitly select it and configure its supported identity/name and
+provider hooks. See [customer setup](docs/CUSTOMER_SETUP.md). Existing firmware
+without persistent rename support needs `--keep-name` or a factory update.
+The commands below remain available for maintainers and exact-label installation.
 
 For a shipped unit, read the name on its label and run:
 

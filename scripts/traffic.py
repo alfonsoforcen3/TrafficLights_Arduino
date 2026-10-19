@@ -10,17 +10,14 @@ all active sessions.
 import os
 import argparse
 import sys
-import glob
 import json
 import socket
-import datetime
-import serial
-import serial.tools.list_ports
+import io
+import queue
+import threading
 
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
-BAUD_RATE = 115200
-LOG_FILE = os.path.join(os.path.dirname(__file__), "traffic.log")
 
 EVENT_MAP = {
     # Working / Thinking
@@ -75,67 +72,80 @@ EVENT_MAP = {
     "TEST": "T"
 }
 
-def log(msg):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {msg}\n"
+def log(_message):
+    """Compatibility no-op: observers never write prompts/session IDs or block on disk."""
+    pass
+
+
+def read_payload(stream=None, timeout=0.2, max_bytes=1024 * 1024):
+    """Read one bounded JSON payload without waiting forever for pipe EOF.
+
+    Raw descriptor reads avoid leaving a Python buffered-stdin lock held by a
+    daemon reader at interpreter shutdown. No hardware or file I/O is attempted.
+    """
+    stream = sys.stdin if stream is None else stream
     try:
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line)
-    except Exception:
-        pass
+        if stream.isatty():
+            return {}
+    except (AttributeError, OSError):
+        return {}
+    if isinstance(stream, io.StringIO):
+        raw = stream.read(max_bytes + 1)
+        if len(raw.encode('utf-8')) > max_bytes:
+            return {}
+        try:
+            value = json.loads(raw)
+            return value if isinstance(value, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    try:
+        descriptor = stream.fileno()
+    except (AttributeError, OSError, ValueError):
+        return {}
+    result = queue.Queue(maxsize=1)
+    def reader():
+        raw = bytearray()
+        try:
+            while len(raw) <= max_bytes:
+                chunk = os.read(descriptor, min(65536, max_bytes + 1 - len(raw)))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+                if len(raw) > max_bytes:
+                    break
+                try:
+                    value = json.loads(raw)
+                    result.put_nowait(value if isinstance(value, dict) else {})
+                    return
+                except (ValueError, UnicodeError):
+                    pass
+            result.put_nowait({})
+        except (OSError, ValueError, queue.Full):
+            try:
+                result.put_nowait({})
+            except queue.Full:
+                pass
+    threading.Thread(target=reader, daemon=True).start()
+    try:
+        return result.get(timeout=timeout)
+    except queue.Empty:
+        return {}
+
 
 def send_via_tcp(session_id, char_code):
-    """Sends session-aware state update to background bridge."""
+    """Best-effort loopback delivery; absent hardware never triggers USB probing."""
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.2)
-        sock.connect((TCP_HOST, TCP_PORT))
-        payload = json.dumps({
-            "session_id": str(session_id),
-            "state": char_code
-        })
-        sock.sendall(payload.encode("utf-8"))
-        resp = sock.recv(1024).decode("utf-8", errors="ignore")
-        sock.close()
-        return True, resp.strip()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.15)
+            sock.connect((TCP_HOST, TCP_PORT))
+            payload = json.dumps({'session_id': str(session_id)[:128], 'state': char_code}, ensure_ascii=False)
+            sock.sendall(payload.encode('utf-8'))
+            # The observer does not require an acknowledgement. The bridge is
+            # responsible for Bluetooth/serial and delivery diagnostics.
+            return True, None
     except (ConnectionRefusedError, socket.timeout, OSError):
         return False, None
 
-def find_serial_port():
-    override = os.environ.get("TRAFFIC_PORT")
-    if override:
-        return override
-    ports = list(serial.tools.list_ports.comports())
-    for p in ports:
-        desc = (p.description or "").lower()
-        hwid = (p.hwid or "").lower()
-        if "1a86:7523" in hwid or "ch340" in desc or "arduino" in desc or "usb" in desc:
-            return p.device
-    for p in ports:
-        if p.device.upper().startswith("COM") or "usb" in p.device.lower():
-            return p.device
-    return None
-
-def send_via_direct_serial(char_code):
-    """Direct serial fallback when bridge is not running."""
-    port = find_serial_port()
-    if not port:
-        log("No serial port found.")
-        return False
-    try:
-        ser = serial.Serial()
-        ser.port = port
-        ser.baudrate = BAUD_RATE
-        ser.timeout = 0.5
-        ser.dtr = False
-        ser.open()
-        ser.write(char_code.encode("utf-8"))
-        ser.flush()
-        ser.close()
-        return True
-    except Exception as e:
-        log(f"Direct serial write error: {e}")
-        return False
 
 def options():
     parser = argparse.ArgumentParser(description='Send a provider/session lifecycle signal to the traffic light.')
@@ -150,24 +160,15 @@ def options():
         parser.error('provider must contain only lowercase letters, digits, underscores or hyphens')
     return args
 
-def parse_input():
-    args = options()
+def parse_input(args=None):
+    args = options() if args is None else args
     arg = args.event.strip().upper()
     session_id = f"proc_{os.getppid()}"
     parsed_payload = {}
 
-    # Inspect stdin for session ID and error status
-    if not sys.stdin.isatty():
-        try:
-            stdin_data = sys.stdin.read().strip()
-            if stdin_data:
-                parsed_payload = json.loads(stdin_data)
-                session_id = parsed_payload.get("conversationId") or \
-                             parsed_payload.get("sessionId") or \
-                             parsed_payload.get("conversation_id") or \
-                             parsed_payload.get("session_id") or session_id
-        except Exception:
-            pass
+    parsed_payload = read_payload()
+    session_id = (parsed_payload.get('conversationId') or parsed_payload.get('sessionId') or
+                  parsed_payload.get('conversation_id') or parsed_payload.get('session_id') or session_id)
 
     session_id = args.provider + ':' + str(args.session_id or session_id)
     event = str(parsed_payload.get('hook_event_name') or parsed_payload.get('event') or '').upper()
@@ -198,8 +199,8 @@ def parse_input():
             return session_id, "Y"
         if err or term == "error":
             return session_id, "R"
-        event = parsed_payload.get("hook_event_name") or parsed_payload.get("event") or ""
-        tool = parsed_payload.get('tool_name', '')
+        event = str(parsed_payload.get("hook_event_name") or parsed_payload.get("event") or "")
+        tool = str(parsed_payload.get('tool_name') or '')
         if event.upper() in ('PRETOOLUSE', 'POSTTOOLUSE', 'BEFORETOOL') and (
                 'request_user_input' in tool or (tool == 'AskUserQuestion' and event.upper() == 'PRETOOLUSE') or
                 (tool == 'ask_user' and event.upper() == 'BEFORETOOL')):
@@ -213,23 +214,28 @@ def parse_input():
     return session_id, "G"
 
 def main():
-    session_id, color = parse_input()
+    """Observe lifecycle only: always fail open, never approve/block/continue AI."""
+    args = None
+    try:
+        args = options()
+        session_id, color = parse_input(args)
+        if color is not None:
+            send_via_tcp(session_id, color)
+    except (Exception, SystemExit):
+        # Malformed input, argument drift, missing helper or network failure must
+        # not become a provider decision or an agent-blocking nonzero exit.
+        pass
+    if args is not None and args.silent:
+        raise SystemExit(0)
+    try:
+        # Cursor beforeSubmitPrompt explicitly requires a pass-through response;
+        # all other observers return the empty JSON object (including Codex Stop).
+        print(json.dumps({'continue': True}) if args is not None and args.cursor_prompt else '{}', flush=True)
+    except (OSError, ValueError):
+        # Avoid a second broken-pipe flush at interpreter shutdown (exit 120).
+        sys.stdout = io.StringIO()
+    raise SystemExit(0)
 
-    if color is None:
-        if not options().silent:
-            print("{}")
-        return
-    success, resp = send_via_tcp(session_id, color)
-    channel = "bridge"
 
-    if not success:
-        success = send_via_direct_serial(color)
-        channel = "direct_serial"
-
-    log(f"Session: {session_id[:12]} | State: {color} | Success: {success} | Channel: {channel} | Resp: {resp}")
-    if not options().silent:
-        print(json.dumps({"continue": True}) if options().cursor_prompt else "{}")
-    sys.exit(0)
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    raise SystemExit(main())

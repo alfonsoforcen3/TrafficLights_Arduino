@@ -47,30 +47,116 @@ def detect():
         if hits: evidence[provider] = hits
     return evidence
 
-def remove_ours(data, provider):
+def owns_hook(hook, provider):
+    """Ownership fields on unrelated hooks may be null or nonstring."""
+    if not isinstance(hook, dict):
+        return False
+    marker = hook.get('statusMessage')
+    name = hook.get('name')
+    command = hook.get('command')
+    if provider in ('codex', 'claude'):
+        prefix = 'Traffic light:' if provider == 'codex' else 'Traffic light: Claude '
+        return isinstance(marker, str) and marker.startswith(prefix)
+    command = command if isinstance(command, str) else ''
     if provider == 'cursor':
-        for event, hooks in list(data.get('hooks',{}).items()):
-            # Cursor has no nested hook marker. Only remove commands with our script and namespace.
-            retained = [h for h in hooks if not (
-                'traffic.py' in h.get('command','') and '--provider cursor' in h.get('command','')
-                and '--trafficlights-hook' in h.get('command',''))]
-            if retained: data['hooks'][event] = retained
-            else: del data['hooks'][event]
-    else:
-        for event, groups in list(data.get('hooks',{}).items()):
-            retained = []
-            for group in groups:
-                group = dict(group)
-                group['hooks'] = [h for h in group.get('hooks',[])
-                                  if not (h.get('name','').startswith('trafficlights-gemini-')
-                                      or (h.get('name','').startswith('traffic-light-')
-                                          and 'traffic.py' in h.get('command','')
-                                          and '--provider gemini' in h.get('command','')))]
-                if group['hooks']: retained.append(group)
-            if retained: data['hooks'][event] = retained
-            else: del data['hooks'][event]
+        return ('traffic.py' in command and '--provider cursor' in command
+                and '--trafficlights-hook' in command)
+    return (isinstance(name, str) and (name.startswith('trafficlights-gemini-')
+            or (name.startswith('traffic-light-') and 'traffic.py' in command
+                and '--provider gemini' in command)))
+
+
+def validate_config(data, provider, enable=True):
+    """Validate every container consumed by setup before mutation or installation."""
+    if provider not in SUPPORTED:
+        raise ValueError('Unsupported provider: ' + str(provider))
+    if not isinstance(data, dict) or not isinstance(data.get('hooks', {}), dict):
+        raise RuntimeError('Invalid hook configuration; settings left unchanged.')
+    for key in ('enabled', 'disableAllHooks'):
+        if key in data and not isinstance(data[key], bool):
+            raise RuntimeError('Invalid hook policy ' + key + '; settings left unchanged.')
+    if enable and (data.get('enabled') is False or data.get('disableAllHooks') is True):
+        raise RuntimeError(provider + ' hooks are disabled; review your preference first.')
+    if provider == 'cursor' and (type(data.get('version', 1)) is not int or data.get('version', 1) != 1):
+        raise RuntimeError('Unsupported Cursor hook schema version; settings left unchanged.')
+    disabled_names = []
+    if provider == 'gemini':
+        config = data.get('hooksConfig', {})
+        if not isinstance(config, dict):
+            raise RuntimeError('Invalid Gemini hooksConfig; settings left unchanged.')
+        if 'enabled' in config and not isinstance(config['enabled'], bool):
+            raise RuntimeError('Invalid Gemini hooks policy; settings left unchanged.')
+        if enable and config.get('enabled') is False:
+            raise RuntimeError('Gemini hooks are disabled; settings left unchanged.')
+        disabled_names = config.get('disabledHookNames', [])
+        if not isinstance(disabled_names, list) or any(not isinstance(name, str) for name in disabled_names):
+            raise RuntimeError('Invalid Gemini disabledHookNames; settings left unchanged.')
+    owned_names = set('trafficlights-gemini-' + event for event in EVENTS['gemini'])
+    for event, groups in data.get('hooks', {}).items():
+        if not isinstance(event, str) or not isinstance(groups, list):
+            raise RuntimeError('Invalid hook event entries; settings left unchanged.')
+        for group in groups:
+            if not isinstance(group, dict):
+                raise RuntimeError('Invalid hook group; settings left unchanged.')
+            handlers = [group] if provider == 'cursor' else group.get('hooks', [])
+            if not isinstance(handlers, list) or any(not isinstance(hook, dict) for hook in handlers):
+                raise RuntimeError('Invalid hook handlers; settings left unchanged.')
+            for hook in handlers:
+                if owns_hook(hook, provider):
+                    for container in (hook, group):
+                        if 'enabled' in container and not isinstance(container['enabled'], bool):
+                            raise RuntimeError('Invalid owned hook policy; settings left unchanged.')
+                    if isinstance(hook.get('name'), str):
+                        owned_names.add(hook['name'])
+                    if enable and (hook.get('enabled') is False or group.get('enabled') is False):
+                        raise RuntimeError('An owned hook is disabled; review that preference first.')
+    if enable and provider == 'gemini' and owned_names.intersection(disabled_names):
+        raise RuntimeError('A Gemini traffic-light hook is disabled; settings left unchanged.')
+
+
+def remove_ours(data, provider):
+    validate_config(data, provider, enable=False)
+    for event, groups in list(data.get('hooks', {}).items()):
+        retained = []
+        changed = False
+        for group in groups:
+            if provider == 'cursor':
+                if owns_hook(group, provider):
+                    changed = True
+                else:
+                    retained.append(group)
+                continue
+            handlers = group.get('hooks', [])
+            remaining = [hook for hook in handlers if not owns_hook(hook, provider)]
+            if len(remaining) == len(handlers):
+                retained.append(group)
+            else:
+                changed = True
+                if remaining:
+                    retained.append(dict(group, hooks=remaining))
+        if changed:
+            if retained:
+                data['hooks'][event] = retained
+            else:
+                del data['hooks'][event]
+
+
+def preflight(providers):
+    """Validate all selected configs before installing the service or any hooks."""
+    for provider in providers:
+        if provider not in SUPPORTED:
+            raise ValueError('Unsupported provider: ' + str(provider))
+        path = Path.home()/'.codex/hooks.json' if provider == 'codex' else settings_path(provider)
+        data = json.loads(path.read_text()) if path.exists() else {}
+        validate_config(data, provider)
+        hook_command(venv_python(RUNTIME), RUNTIME/'traffic.py', powershell=provider == 'gemini')
+
 
 def configure(provider, enable=True):
+    if provider not in SUPPORTED:
+        raise ValueError('Unsupported provider: ' + str(provider))
+    if enable:
+        preflight([provider])
     if provider == 'codex':
         try: from scripts import codex_setup
         except ModuleNotFoundError: import codex_setup
@@ -85,6 +171,7 @@ def configure(provider, enable=True):
     path = settings_path(provider)
     if not enable and not path.exists(): return
     data = json.loads(path.read_text()) if path.exists() else {}
+    validate_config(data, provider, enable=enable)
     if provider == 'cursor' and data.get('version',1) != 1:
         raise RuntimeError('Unsupported Cursor hook schema version; settings left unchanged.')
     if enable and provider == 'gemini' and data.get('hooksConfig',{}).get('enabled') is False:
@@ -93,7 +180,7 @@ def configure(provider, enable=True):
     if enable and not python.exists(): raise RuntimeError('Install the shared desktop bridge first.')
     remove_ours(data,provider)
     if enable:
-        base = hook_command(python, ROOT/'scripts/traffic.py', powershell=provider == 'gemini')
+        base = hook_command(python, RUNTIME/'traffic.py', powershell=provider == 'gemini')
         if provider == 'cursor': data.setdefault('version',1)
         for event,state in EVENTS[provider].items():
             command = base + (' ' + state if state else '') + ' --provider ' + provider
@@ -125,7 +212,10 @@ def main():
     found = detect()
     print('Detected providers: '+(', '.join(found) or 'none'))
     if args.detect: return
-    for provider in args.providers or found:
+    selected = list(args.providers or found)
+    if not args.disable:
+        preflight(selected)
+    for provider in selected:
         configure(provider,not args.disable)
     print('Review provider hook/workspace trust and policy; configured hooks still require live acceptance tests.')
 

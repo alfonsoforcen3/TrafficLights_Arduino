@@ -20,22 +20,25 @@ EVENTS = {'SessionStart':'G', 'UserPromptSubmit':'Y', 'PreToolUse':'Y',
           'PostToolUse':'Y', 'PostToolUseFailure':'Y', 'PermissionRequest':'B',
           'Stop':'G', 'StopFailure':'R', 'SessionEnd':'O'}
 
+def validate_hooks(data, enable=False):
+    try:
+        from scripts import provider_setup
+    except ModuleNotFoundError:
+        import provider_setup
+    provider_setup.validate_config(data, 'claude', enable=enable)
+
+
 def remove_ours(data):
-    for event, groups in list(data.get('hooks', {}).items()):
-        retained = []
-        for group in groups:
-            group = dict(group)
-            group['hooks'] = [h for h in group.get('hooks', [])
-                              if not h.get('statusMessage', '').startswith(MARKER)]
-            if group['hooks']:
-                retained.append(group)
-        if retained:
-            data['hooks'][event] = retained
-        else:
-            del data['hooks'][event]
+    try:
+        from scripts import provider_setup
+    except ModuleNotFoundError:
+        import provider_setup
+    provider_setup.remove_ours(data, 'claude')
+
 
 def configure(enable):
     data = json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
+    validate_hooks(data, enable=enable)
     if enable and data.get('disableAllHooks'):
         raise RuntimeError('Claude hooks are disabled in user settings; resolve that preference explicitly first.')
     remove_ours(data)
@@ -43,7 +46,7 @@ def configure(enable):
         python = venv_python(RUNTIME)
         if not python.exists():
             raise RuntimeError('Install the shared desktop bridge with install.py first.')
-        base = hook_command(python, ROOT / 'scripts' / 'traffic.py')
+        base = hook_command(python, RUNTIME / 'traffic.py')
         for event, state in EVENTS.items():
             group = {'hooks':[{'type':'command', 'command':base + ' ' + state + ' --provider claude --silent',
                                'timeout':3, 'statusMessage':MARKER + event}]}

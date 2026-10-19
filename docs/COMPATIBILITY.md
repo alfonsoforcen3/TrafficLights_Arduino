@@ -16,6 +16,9 @@
 | Claude Code / Gemini CLI / Cursor adapters | Installer/payload tests pass; real application acceptance pending |
 | Battery charging/runtime / physical repeated off-on cycles | Pending actual battery and board checks |
 | Signed/notarized consumer installer | Not provided; current helper is locally built |
+| Wireless terminal discovery/enrollment | Private candidate; hardware-free tests, clean-customer acceptance pending |
+| Persistent laptop/nickname BLE rename | New nRF firmware candidate using NVM; existing flashed units require factory update or keep-name |
+| ESP32-C3 UART protocol | Separate factory candidate; GPIO configuration and physical acceptance required; not interchangeable firmware |
 
 A different nRF52840 board needs its own CircuitPython UF2, pin names, charger documentation and hardware validation. Do not generalize a compatible bootloader label into an exact board specification. Preserve unsupported-platform limitations instead of letting an installer print a false success.
 

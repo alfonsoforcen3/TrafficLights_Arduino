@@ -18,6 +18,11 @@ def output(pin):
     led.switch_to_output(value=False)
     return led
 
+def decode_legacy_commands(data):
+    """Accept only single-byte legacy commands; malformed RX cannot stop LEDs."""
+    return ''.join(chr(value).upper() for value in data
+                   if value in b'GYRBOQVTXgyrboqvtx')
+
 # Preserve the original wiring unless a per-unit profile explicitly selects another supported pin.
 green_pin = 'P0.10'
 green_brightness = 0.5
@@ -83,7 +88,8 @@ def set_lights(g=False, y=False, r=False):
     red.value = r
 
 def report(transport='usb'):
-    data = (json.dumps({'firmware': 'traffic-nicenano-v1', 'mode': mode,
+    data = (json.dumps({'firmware': 'traffic-nicenano-v1', 'hardware_family': 'nrf52840',
+                        'mode': mode,
                         'display_phase': display_phase, 'green_pwm_duty': green.max_duty,
                         'green_pwm_frequency': 5000, 'green_pin': green_pin, 'amber_pin': amber_pin, 'red_pin': red_pin,
                         green_pin: green.value, amber_pin: amber.value, red_pin: red.value,
@@ -92,6 +98,9 @@ def report(transport='usb'):
                         'session_count_kind': 'working',
                         'working_provider_mask': count_parser.provider_mask if ble and ble.connected else 0,
                         'ble_name': ble.name if ble else None,
+                        'device_id': ble.device_id if ble else None,
+                        'identity_protocol': 1,
+                        'rename_supported': ble.rename_supported if ble else False,
                         'ble_error': ble_error,
                         'battery': battery.sample() if battery else None,
                         'battery_error': battery_error}) + '\n').encode()
@@ -123,7 +132,7 @@ while True:
     for transport, commands in sources:
         if transport == "ble":
             commands = count_parser.feed(commands)
-        for cmd in commands.decode('utf-8').upper():
+        for cmd in decode_legacy_commands(commands):
             if cmd == 'X' and transport == 'usb':
                 microcontroller.reset()  # Local maintenance reset; never exposed over BLE.
             if cmd == "V":

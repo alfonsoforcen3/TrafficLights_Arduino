@@ -30,19 +30,21 @@ def read_hooks():
         return json.loads(HOOKS.read_text())
     return {'hooks': {}}
 
+def validate_hooks(data, enable=False):
+    try:
+        from scripts import provider_setup
+    except ModuleNotFoundError:
+        import provider_setup
+    provider_setup.validate_config(data, 'codex', enable=enable)
+
+
 def remove_ours(data):
-    for event, groups in list(data.get('hooks', {}).items()):
-        retained = []
-        for group in groups:
-            group = dict(group)
-            group['hooks'] = [h for h in group.get('hooks', [])
-                              if not h.get('statusMessage', '').startswith(MARKER)]
-            if group['hooks']:
-                retained.append(group)
-        if retained:
-            data['hooks'][event] = retained
-        else:
-            del data['hooks'][event]
+    try:
+        from scripts import provider_setup
+    except ModuleNotFoundError:
+        import provider_setup
+    provider_setup.remove_ours(data, 'codex')
+
 
 def save(data):
     HOOKS.parent.mkdir(parents=True, exist_ok=True)
@@ -54,19 +56,37 @@ def save(data):
     temporary.write_text(json.dumps(data, indent=2) + '\n')
     temporary.replace(HOOKS)
 
-def install_service(transport=None, ble_name=None):
+def install_service(transport=None, ble_name=None, device_id=None):
     if sys.platform not in ('darwin', 'win32'):
         raise RuntimeError('Use native macOS or Windows Python.')
-    RUNTIME.mkdir(parents=True, exist_ok=True)
     config_path = RUNTIME / 'connection.json'
     config = json.loads(config_path.read_text()) if config_path.exists() else {
         'transport': 'serial', 'ble_name': None}
+    if not isinstance(config, dict):
+        raise RuntimeError('Invalid connection configuration; left unchanged.')
     if transport:
         config['transport'] = transport
     if ble_name:
+        if ble_name != config.get('ble_name'):
+            config.pop('device_id', None)
         config['ble_name'] = ble_name
+    if device_id is not None:
+        import re
+        if not isinstance(device_id, str) or not re.fullmatch(r'[0-9a-fA-F]{8,64}', device_id):
+            raise ValueError('Invalid verified device identity.')
+        config['device_id'] = device_id
+    if config.get('transport') not in ('ble', 'serial'):
+        raise RuntimeError('Invalid connection transport; left unchanged.')
+    if config.get('ble_name') is not None and not isinstance(config['ble_name'], str):
+        raise RuntimeError('Invalid Bluetooth name; left unchanged.')
+    if config.get('device_id') is not None:
+        import re
+        if not isinstance(config['device_id'], str) or not re.fullmatch(r'[0-9a-fA-F]{8,64}', config['device_id']):
+            raise ValueError('Invalid saved device identity; configuration left unchanged.')
     if config['transport'] == 'ble' and not config.get('ble_name'):
         raise RuntimeError('Run python3 install.py to discover your board, or provide --ble-name.')
+    RUNTIME.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / 'scripts' / 'traffic.py', RUNTIME / 'traffic.py')
     python = Path(sys.executable)
     if config['transport'] == 'ble':
         python = venv_python(RUNTIME)
@@ -113,12 +133,16 @@ def install_service(transport=None, ble_name=None):
 
 def enable(install_login_service=True):
     data = read_hooks()
+    validate_hooks(data, enable=True)
+    hook_command(venv_python(RUNTIME), RUNTIME / 'traffic.py')
+    if install_login_service:
+        install_service()
     remove_ours(data)
     events = {'SessionStart': 'G', 'UserPromptSubmit': 'Y', 'PreToolUse': 'Y',
               'PostToolUse': 'Y', 'PermissionRequest': 'B', 'Stop': 'G',
               'Interrupt': 'G', 'SessionEnd': 'O'}
     hook_python = venv_python(RUNTIME)
-    base = hook_command(hook_python if hook_python.exists() else sys.executable, ROOT / 'scripts' / 'traffic.py')
+    base = hook_command(hook_python if hook_python.exists() else sys.executable, RUNTIME / 'traffic.py')
     for event, color in events.items():
         group = {'hooks': [{'type': 'command', 'command': base + ' ' + color,
                             'timeout': 3, 'statusMessage': MARKER + ' ' + event}]}
@@ -126,8 +150,6 @@ def enable(install_login_service=True):
             group['matcher'] = '.*'
         data.setdefault('hooks', {}).setdefault(event, []).append(group)
     save(data)
-    if install_login_service:
-        install_service()
     print('Installed Codex hooks: ' + str(HOOKS))
     print('Review and trust the Traffic light hooks in the app Hooks settings (or CLI /hooks).')
 
@@ -157,7 +179,7 @@ def disable():
         subprocess.run(['launchctl', 'bootout', 'gui/' + str(os.getuid()), str(PLIST)], check=False)
         PLIST.unlink()
     if sys.platform != 'win32':
-        subprocess.run([sys.executable, str(ROOT / 'scripts' / 'traffic.py'), 'O'],
+        subprocess.run([sys.executable, str(RUNTIME / 'traffic.py'), 'O'],
                        stdin=subprocess.DEVNULL)
     print('Removed owned provider hooks and login service; unrelated hooks preserved.')
 

@@ -29,6 +29,27 @@ The default BLE name comes from the CPU UID suffix; a per-unit profile may overr
 
 Customers should receive a pre-flashed, assembled, tested unit. USB provisioning is for the factory, firmware updates, and recovery—not ordinary customer onboarding.
 
+### Private enrollment firmware candidate (18 October 2026)
+
+New nRF firmware exposes `hardware_family=nrf52840`, the full CPU `device_id`,
+`identity_protocol=1` and `rename_supported` in Q reports. A bounded `!JSON` frame
+can persist a selected name in an owned 40-byte NVM record, with readback before
+acknowledgement. Per-unit GPIO/OLED hardware_config.json is not rewritten.
+Foreign NVM content disables persistent rename. Actual pinned CircuitPython NVM
+write/power-cycle behavior still requires board acceptance before shipment.
+Already-flashed units do not gain this feature until factory firmware update.
+
+Customer names combine laptop/nickname and eight UID hex digits within 29 UTF-8
+bytes. The host saves/verifies the full identity; the name suffix alone is not an
+ownership credential or universal collision guarantee. Nordic UART remains
+unauthenticated. Explicit physical identification prevents accidental selection;
+it does not provide cryptographic pairing or exclusive-owner security.
+
+The [ESP32-C3 candidate](ESP32C3.md) implements the same host protocol separately.
+It needs explicit verified GPIO/polarity, factory compilation and physical tests.
+Never flash nRF UF2 onto ESP32; host detection cannot compensate for missing or
+incorrect board firmware. The ESP32 sketch is uncompiled/unflashed in this iteration.
+
 ## Per-unit wiring and Bluetooth name
 
 The original profile remains P0.10 green, P1.11 amber, P1.13 red. The replacement unit requested on 2026-10-05 uses P0.09 green (the `009` silkscreen below `010`, which reads `600` upside down), with amber and red unchanged, and the requested BLE name `first clawdy`. Provision it only after confirming its actual board/bootloader identity.

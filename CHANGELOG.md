@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-10-19 — Wizard polish and accurate private website preview
+
+- Polished terminal onboarding with five phases, optional colour, plain-output
+  fallbacks and explicit verified/pending outcomes.
+- Added a private responsive website preview using a faithful actual-model
+  render, signal demo and setup walkthrough; the public QR page is unchanged.
+- Tested and prepared the previously local onboarding, identity, observer-hook
+  reliability and OLED phrase work for the owner's authorized commit/push.
+
+See [iteration findings](docs/findings/2026-10-19-wizard-and-website.md).
+
+## 2026-10-18 — Private customer onboarding candidate
+
+- Follow-up hook audit: installed commands pointed into Desktop files observed
+  as offloaded/dataless, with stalled source reads. New definitions use a local
+  runtime observer; an explicit migration preserves existing settings and does
+  not start the service. The observer now bounds input/network work, returns
+  neutral provider output and does not fall back to opening USB devices or
+  writing checkout logs. This fixes concrete blocking risks, not proof that
+  hooks caused a model to finish its answer early.
+
+- Added terminal BLE discovery/selection without USB data, provider preview and
+  policy preflight, physical identification prompts and post-install verification.
+- Added capability-checked persistent nRF52840 naming with immutable unit ID,
+  preserving GPIO/OLED configuration; legacy firmware can keep its current name.
+- Reject duplicate BLE names and validate enrolled identity before sending tracked
+  states. Normal OS Bluetooth access and provider hook trust remain required.
+- Added allowlisted private customer bundle with SHA-256 manifest, customer/agent
+  setup guides and release acceptance steps. Nothing was published; the released
+  host was not reconnected. The separately requested observer repair migrated
+  existing hook commands without starting the bridge or granting hook trust.
+
+This is a private candidate. Physical enrollment/power-cycle persistence, clean
+customer setup and native Windows/provider acceptance remain pending. See
+[candidate findings](docs/findings/2026-10-18-customer-onboarding.md).
+
 ## 2026-10-14 — OLED Clawdy and stable BLE writes
 
 - Added optional SSD1306-compatible OLED animations with the 45 mm Clawdy proportions, red × eyes, rotating funny comments, larger top title, top working-only WIP count and smaller provider marks below.

@@ -18,6 +18,15 @@ Installation backs up configuration in .backups/, adds only owned entries, and p
 
 ## Integration matrix
 
+New hook commands execute `traffic.py` from the per-user local runtime, avoiding
+cloud-backed source file hydration during lifecycle events. The observer bounds
+input/network work and fails open, with no direct USB fallback or source-tree
+logging. It observes status only; it never blocks a tool or forces continuation.
+Existing installations can preview `python3 scripts/migrate_hook_runtime.py
+--dry-run` and apply the owned-command migration with `--apply`. Review changed
+paths through normal provider trust controls. Migration preserves disabled and
+unrelated settings and does not start a service or enable additional hooks.
+
 | Provider/application | User configuration | Signals | Evidence |
 | --- | --- | --- | --- |
 | Local Codex / locally orchestrated Work | ~/.codex/hooks.json | prompt/tools Y; permission/input B; stop G; explicit error R; session end removes | Real local hooks/BLE verified |

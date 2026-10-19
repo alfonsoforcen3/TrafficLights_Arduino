@@ -9,8 +9,11 @@ RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'
 TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'
 
 class BluetoothLink:
-    def __init__(self, name, get_state, on_report, get_session_count=None, get_provider_mask=None):
+    def __init__(self, name, get_state, on_report, get_session_count=None, get_provider_mask=None, device_id=None):
         self.name = name
+        self.device_id = device_id
+        self._identity_ready = None
+        self._identity_valid = False
         self.get_state = get_state
         self.get_session_count = get_session_count
         self.get_provider_mask = get_provider_mask
@@ -33,7 +36,19 @@ class BluetoothLink:
             self.buffer = bytearray(remaining)
             try:
                 report = json.loads(line)
-                if report.get('firmware') == 'traffic-nicenano-v1':
+                if report.get('firmware') in ('traffic-nicenano-v1', 'traffic-esp32c3-v1'):
+                    if self.device_id and report.get('device_id') != self.device_id:
+                        self.last_error = 'Board identity mismatch; reenroll the intended unit'
+                        self.connected = False
+                        self._identity_valid = False
+                        if self._identity_ready:
+                            self._identity_ready.set()
+                        continue
+                    if self._identity_ready is not None:
+                        if report.get('transport') != 'ble':
+                            continue
+                        self._identity_valid = True
+                        self._identity_ready.set()
                     self.on_report(report)
             except (ValueError, AttributeError):
                 pass
@@ -66,14 +81,29 @@ class BluetoothLink:
         future.add_done_callback(done)
         return True
 
+    async def discover_device(self):
+        # Collect the entire scan window: first-match discovery can connect to
+        # the wrong unit when two nearby boards advertise the same name.
+        advertisements = await asyncio.wait_for(BleakScanner.discover(
+            timeout=10, service_uuids=[SERVICE_UUID], return_adv=True), timeout=15)
+        matches = {}
+        for device, advertisement in advertisements.values():
+            services = {uuid.lower() for uuid in advertisement.service_uuids or []}
+            if SERVICE_UUID not in services:
+                continue
+            if advertisement.local_name == self.name or device.name == self.name:
+                matches[device.address.casefold()] = device
+        if len(matches) > 1:
+            raise RuntimeError('Multiple Bluetooth boards advertise ' + repr(self.name)
+                               + '; power off other matching units before connecting')
+        return next(iter(matches.values()), None)
+
     async def run(self):
         self.loop = asyncio.get_running_loop()
         while True:
             try:
                 print('Scanning for Bluetooth traffic light ' + self.name, flush=True)
-                device = await asyncio.wait_for(BleakScanner.find_device_by_filter(
-                    lambda d, a: a.local_name == self.name or d.name == self.name,
-                    timeout=10, service_uuids=[SERVICE_UUID]), timeout=15)
+                device = await self.discover_device()
                 if not device:
                     self.last_error = 'Board not found; check that it has power'
                     await asyncio.sleep(2)
@@ -86,7 +116,13 @@ class BluetoothLink:
                 try:
                     await asyncio.wait_for(client.connect(), timeout=20)
                     self.buffer.clear()
+                    self._identity_valid = False
+                    self._identity_ready = asyncio.Event()
                     await asyncio.wait_for(client.start_notify(TX_UUID, self.notified), timeout=10)
+                    await self.write(b'Q')
+                    await asyncio.wait_for(self._identity_ready.wait(), timeout=8)
+                    if not self._identity_valid:
+                        raise RuntimeError('Selected board identity does not match enrollment')
                     self.peer = device.address
                     self.connected = True
                     self.last_error = None

@@ -2,6 +2,25 @@
 
 **Current status: tester preview.** Documentation and automated checks improve maintainability; they do not establish production reliability or battery safety. Record acceptance evidence in CHANGELOG.md and the release report before closing a gate.
 
+## Private customer candidate — 18 October 2026
+
+The owner requested preparation in private and will decide publication later.
+`install.py --onboard` adds terminal BLE discovery, explicit/visual device
+selection, capability-checked naming and selected-provider setup. A clean ZIP
+with hashes can be built using `scripts/build_customer_bundle.py`. It contains
+readable runtime code and no factory firmware; it is not a signed installer.
+Do not upload it or change repository visibility without a release request.
+
+The QR landing page is live at the existing URL; its public installer controls
+remain previews. Customer access stays blocked until an approved package is
+published. See [customer guide](CUSTOMER_SETUP.md), [agent import instructions](CUSTOMER_AGENT.md)
+and [candidate findings](findings/2026-10-18-customer-onboarding.md).
+
+Physical rename persistence, clean-Mac setup, Windows native acceptance,
+production-unit wiring and real-provider dispatch are still release gates.
+Battery gates apply only to battery-equipped units; a USB-powered batch still
+needs power-source, wiring and device lifecycle acceptance.
+
 | Area | Established evidence | Gate still open |
 | --- | --- | --- |
 | Prototype LEDs and BLE | User confirmed visible colours; GPIO acknowledgements tested | Repeat across production board batch |

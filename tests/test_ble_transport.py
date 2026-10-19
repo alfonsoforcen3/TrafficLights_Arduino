@@ -1,6 +1,8 @@
 import asyncio
 import unittest
-from scripts.ble_transport import BluetoothLink, RX_UUID
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from scripts.ble_transport import BluetoothLink, RX_UUID, SERVICE_UUID
 
 
 class SinglePendingClient:
@@ -55,3 +57,57 @@ class BluetoothWriteTests(unittest.IsolatedAsyncioTestCase):
             await task
         await link.write(b'Q')
         self.assertEqual(client.writes, [(RX_UUID, b'Q', True)])
+
+
+class BluetoothDiscoveryTests(unittest.IsolatedAsyncioTestCase):
+    def advertisement(self, address, name='test', services=None, local_name='test'):
+        return (SimpleNamespace(address=address, name=name),
+                SimpleNamespace(local_name=local_name,
+                                service_uuids=[SERVICE_UUID] if services is None else services))
+
+    async def discover(self, advertisements):
+        link = BluetoothLink('test', lambda: 'Y', lambda report: None)
+        with patch('scripts.ble_transport.BleakScanner.discover',
+                   new=AsyncMock(return_value=advertisements)) as scan:
+            result = await link.discover_device()
+            scan.assert_awaited_once_with(timeout=10, service_uuids=[SERVICE_UUID], return_adv=True)
+            return result
+
+    async def test_selects_only_exact_name_and_uart_service(self):
+        expected = self.advertisement('AA', services=[SERVICE_UUID.upper()])
+        found = await self.discover({
+            'other-name': self.advertisement('BB', name='test-extra', local_name='test-extra'),
+            'other-service': self.advertisement('CC', services=['unrelated']),
+            'missing-service': self.advertisement('DD', services=[]),
+            'selected': expected})
+        self.assertIs(found, expected[0])
+
+    async def test_supports_device_name_when_local_name_missing(self):
+        expected = self.advertisement('AA', local_name=None)
+        self.assertIs(await self.discover({'selected': expected}), expected[0])
+
+    async def test_repeated_address_does_not_count_as_two_units(self):
+        found = await self.discover({'first': self.advertisement('aa'),
+                                     'repeat': self.advertisement('AA')})
+        self.assertEqual(found.address, 'AA')
+
+    async def test_no_matching_board_returns_none(self):
+        self.assertIsNone(await self.discover({}))
+
+    async def test_duplicate_name_refuses_connection_and_reports_error(self):
+        reports = []
+        link = BluetoothLink('test', lambda: 'Y', reports.append)
+        advertisements = {'first': self.advertisement('AA'),
+                          'second': self.advertisement('BB')}
+        with patch('scripts.ble_transport.BleakScanner.discover',
+                   new=AsyncMock(return_value=advertisements)), \
+             patch('scripts.ble_transport.BleakClient') as client, \
+             patch('scripts.ble_transport.asyncio.sleep',
+                   new=AsyncMock(side_effect=asyncio.CancelledError)):
+            with self.assertRaises(asyncio.CancelledError):
+                await link.run()
+        client.assert_not_called()
+        self.assertIn('Multiple Bluetooth boards', link.last_error)
+        self.assertFalse(link.connected)
+        self.assertIsNone(link.client)
+        self.assertEqual(reports, [None])

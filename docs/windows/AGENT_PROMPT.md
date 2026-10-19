@@ -38,7 +38,12 @@ Deliver working Windows code and installation on this laptop where possible, rel
 
 Read AGENTS.md, INSTALL.md, docs/COMPATIBILITY.md, docs/HARDWARE.md, docs/LAPTOP_HANDOFF.md, docs/PROVIDERS.md, docs/TESTING.md and docs/WEBSITE_BATTERY.md. Inspect the current git status, branch, HEAD and remote. Preserve unrelated work and the separate ignored claude-mascot-3d checkout. Use a codex/ branch for implementation unless the user specifically requests another branch. Avoid unrelated package/model changes.
 
-As of this handoff, install.py explicitly accepts macOS only; it must not be presented as a Windows installer. The BLE transport uses Bleak, but that alone does not make installation, lifecycle management and provider hooks portable. The Mac helper is an alias app requiring its runtime and is not a signed Windows executable. Existing dependencies and tests are evidence for the Mac profile, not Windows qualification.
+The current install.py selects native macOS or Windows and includes a Windows
+startup implementation. Native Windows BLE and real-provider acceptance for
+this revision remain pending. The Mac helper is an alias app requiring its
+runtime and is not a signed Windows executable. Do not treat hardware-free
+Windows tests as physical qualification. Use docs/windows/INSTALL.md for the
+current implementation and record acceptance results on the actual laptop.
 
 Run applicable hardware-free baseline tests using an isolated environment. Record the command, versions, result and failures before editing. Identify whether any test assumes POSIX paths, launchctl, PyObjC or macOS app bundles. Keep Mac coverage when adding Windows support. No untested platform should be reported as supported.
 

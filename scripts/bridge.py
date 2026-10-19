@@ -321,7 +321,8 @@ def run_bridge():
         bluetooth_link = BluetoothLink(os.environ.get('TRAFFIC_BLE_NAME') or connection_config['ble_name'],
                                        lambda: current_hardware_state, received,
                                        get_session_count=working_session_count,
-                                       get_provider_mask=working_provider_mask)
+                                       get_provider_mask=working_provider_mask,
+                                       device_id=connection_config.get('device_id'))
         bluetooth_link.start()
     else:
         watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)

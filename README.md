@@ -23,6 +23,19 @@ Each chat has a separate provider/session record. The shared light prioritizes *
 
 ## Set up a pre-flashed light
 
+### Private customer onboarding candidate
+
+The new terminal flow discovers a powered toy over Bluetooth without USB data,
+checks its firmware identity, asks for a nickname, and configures selected local
+provider hooks. Persistent naming requires factory-updated firmware; older units
+can keep their existing advertisement. Start with `python3 install.py --onboard`.
+See [customer setup](docs/CUSTOMER_SETUP.md) and [customer agent instructions](docs/CUSTOMER_AGENT.md).
+This candidate stays private until the owner approves release and physical
+acceptance passes. A clean distribution bundle can be prepared using
+`python3 scripts/build_customer_bundle.py`; it does not publish anything.
+
+### Existing maintainer/tester installation
+
 The source workflow below requires authorized access to this private repository. Customer documentation lives in [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup); a standalone signed consumer installer is still pending.
 
 Boards should ship wired, flashed, tested, and labelled with their Bluetooth name. Testers install the native Mac or Windows companion and approve local access; routine operation needs no USB data connection.
