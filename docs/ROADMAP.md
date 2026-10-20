@@ -14,4 +14,9 @@ OpenCode and Windsurf are **candidates, not installed or supported adapters in t
 
 Product work should come first: reliable battery/reconnect acceptance, clean-Mac onboarding, standalone signed/notarized installation, robust device identity/enrollment, and update/rollback. Expanding an unverified provider list does not replace those release gates.
 
+The [Virtual Clawdy plan](VIRTUAL_CLAWDY_PLAN.md) proposes a macOS desktop
+companion using the same status semantics, with an explicit virtual-only mode,
+isolated rendering, bounded recovery and measurable private acceptance gates.
+It is planning only; no virtual desktop app or compatibility claim is shipped.
+
 References: [OpenCode plugins/events](https://opencode.ai/docs/plugins/), [Windsurf/Cascade hooks](https://docs.windsurf.com/windsurf/cascade/hooks). The latter documentation may redirect as product branding changes; verify the shipped client version before integration.

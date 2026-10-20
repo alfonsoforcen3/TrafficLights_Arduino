@@ -105,6 +105,22 @@ yourself; the assistant leaves those settings unchanged. Setup backs up changed
 provider files and preserves unrelated hooks. An interrupted install may leave
 some installed components; rerun after resolving the reported error.
 
+The wizard writes a private per-unit recovery record under
+`~/.local/share/trafficlights/onboarding/` before requesting a rename or starting
+installation. It records the previous/target names, selected providers and last
+setup phase, not AI prompts. This is a checkpoint and retry aid, not an automatic
+rollback or an automatic resume. If a rename acknowledgement is lost, look for
+either name and physically identify the intended toy again. If installation
+fails after renaming, use the confirmed new name with `--keep-name` on retry.
+Check for a still-running installer and inspect existing companion status first;
+timing out the direct installer cannot guarantee all child processes stopped.
+Do not run concurrent setup sessions against the same laptop/runtime.
+
+EOF or Ctrl-C stops further wizard actions with a concise cancellation message.
+Already saved device names, dependencies or partially installed services/hooks
+can remain. A completed installation still needs the Bluetooth/visible LED and
+real-provider checks below; a recovery record is not proof of acceptance.
+
 For an existing installation whose hooks point into a cloud-backed checkout,
 preview `python3 scripts/migrate_hook_runtime.py --dry-run`, then use `--apply`
 to update only existing owned commands and copy the observer into the runtime.

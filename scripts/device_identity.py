@@ -6,6 +6,7 @@ Bleak is imported lazily so offline setup previews need no BLE dependencies.
 """
 import asyncio
 import json
+import math
 import re
 import unicodedata
 
@@ -13,11 +14,51 @@ RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'
 TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'
 SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
 SUPPORTED_FIRMWARE = ('traffic-nicenano-v1', 'traffic-esp32c3-v1')
+SCAN_CLEANUP_TIMEOUT = 2.0
+
+
+def _validated_timeout(timeout):
+    """Reject deadlines that would disable bounding before opening any BLE client."""
+    if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout) or timeout <= 0):
+        raise ValueError('Bluetooth timeout must be a finite positive number')
+    return timeout
+
+
+def _valid_device_id(value):
+    return isinstance(value, str) and re.fullmatch(r'[0-9a-fA-F]{8,64}', value) is not None
+
+
+class _ReportBuffer:
+    """Bound newline-delimited reports, discarding a whole oversized frame."""
+    LIMIT = 8192
+
+    def __init__(self):
+        self.pending = bytearray()
+        self.discarding = False
+
+    def feed(self, data):
+        self.pending.extend(data)
+        while b'\n' in self.pending:
+            line, _, rest = self.pending.partition(b'\n')
+            self.pending[:] = rest
+            oversized, self.discarding = self.discarding, False
+            if oversized or len(line) > self.LIMIT:
+                continue
+            try:
+                report = json.loads(line.decode('utf-8'))
+            except (ValueError, UnicodeError, RecursionError):
+                continue
+            if isinstance(report, dict):
+                yield report
+        if len(self.pending) > self.LIMIT:
+            self.pending.clear()
+            self.discarding = True
 
 
 def make_device_name(laptop, nickname, device_id):
     """29-byte legacy scan-response budget, keeping both names and UID suffix."""
-    if not re.fullmatch(r'[0-9a-fA-F]{8,64}', device_id or ''):
+    if not _valid_device_id(device_id):
         raise ValueError('A verified device UID is required to generate a name')
     def clean(value):
         value = unicodedata.normalize('NFKC', value).strip()
@@ -33,15 +74,30 @@ def make_device_name(laptop, nickname, device_id):
 
 
 async def discover_candidates(timeout=8.0):
+    timeout = _validated_timeout(timeout)
     from bleak import BleakScanner
-    discovered = await BleakScanner.discover(timeout=timeout, return_adv=True)
-    candidates = []
-    for device, advert in discovered.values():
-        name = advert.local_name or device.name or ''
-        services = [s.lower() for s in advert.service_uuids]
-        if SERVICE_UUID in services:
-            candidates.append({'name': name, 'address': device.address, 'rssi': advert.rssi})
-    return sorted(candidates, key=lambda item: (item['name'], item['address']))
+    # Bleak sleeps for the scan duration, then stops its scanner. Allow a bounded
+    # cleanup margin so an ordinary full-duration scan is not cancelled early.
+    discovered = await asyncio.wait_for(
+        BleakScanner.discover(timeout=timeout, return_adv=True),
+        timeout=timeout + SCAN_CLEANUP_TIMEOUT)
+    candidates = {}
+    for item in discovered.values():
+        if not isinstance(item, (tuple, list)) or len(item) != 2:
+            continue
+        device, advert = item
+        services = getattr(advert, 'service_uuids', None) or []
+        if not isinstance(services, (tuple, list)) or not any(
+                isinstance(service, str) and service.lower() == SERVICE_UUID for service in services):
+            continue
+        address = getattr(device, 'address', None)
+        if not isinstance(address, str) or not address.strip():
+            continue
+        name = getattr(advert, 'local_name', None) or getattr(device, 'name', None) or ''
+        if not isinstance(name, str):
+            name = ''
+        candidates[address] = {'name': name, 'address': address, 'rssi': getattr(advert, 'rssi', None)}
+    return sorted(candidates.values(), key=lambda item: (item['name'], item['address']))
 
 
 async def _with_bounded_client(address, operation, timeout, cleanup=None):
@@ -51,6 +107,7 @@ async def _with_bounded_client(address, operation, timeout, cleanup=None):
     connection timeout. Keep cleanup outside the exchange deadline and preserve
     the original error if cleanup also fails. Backends must honor cancellation.
     """
+    timeout = _validated_timeout(timeout)
     from bleak import BleakClient
     client = BleakClient(address, timeout=timeout)
     failed = False
@@ -67,11 +124,11 @@ async def _with_bounded_client(address, operation, timeout, cleanup=None):
         if cleanup is not None:
             try:
                 await asyncio.wait_for(cleanup(client), timeout=timeout)
-            except Exception as error:
+            except (Exception, asyncio.CancelledError) as error:
                 cleanup_error = error
         try:
             await asyncio.wait_for(client.disconnect(), timeout=timeout)
-        except Exception as error:
+        except (Exception, asyncio.CancelledError) as error:
             if cleanup_error is None:
                 cleanup_error = error
         if not failed and cleanup_error is not None:
@@ -79,22 +136,13 @@ async def _with_bounded_client(address, operation, timeout, cleanup=None):
 
 
 async def _transaction(address, wire, predicate, timeout):
-    pending = bytearray()
+    reports = _ReportBuffer()
     loop = asyncio.get_running_loop()
     reply = loop.create_future()
     def receive(_sender, data):
-        pending.extend(data)
-        while b'\n' in pending:
-            line, _, rest = pending.partition(b'\n')
-            pending[:] = rest
-            try:
-                report = json.loads(line.decode('utf-8'))
-            except (ValueError, UnicodeError):
-                continue
-            if isinstance(report, dict) and predicate(report) and not reply.done():
+        for report in reports.feed(data):
+            if predicate(report) and not reply.done():
                 reply.set_result(report)
-        if len(pending) > 8192:
-            pending.clear()
     async def run(client):
         await client.start_notify(TX_UUID, receive)
         for offset in range(0, len(wire), 20):
@@ -106,24 +154,29 @@ async def _transaction(address, wire, predicate, timeout):
 async def inspect_device(address, timeout=12.0):
     report = await _transaction(address, b'Q', lambda r: r.get('transport') == 'ble' and
                                 r.get('firmware') in SUPPORTED_FIRMWARE, timeout)
+    if report.get('device_id') is not None and not _valid_device_id(report['device_id']):
+        raise ValueError('Board reported a malformed device UID')
     return report
 
 
 async def rename_device(address, name, expected_device_id, timeout=12.0):
     if not isinstance(name, str) or not 1 <= len(name.encode('utf-8')) <= 29 or any(ord(c) < 32 or ord(c) == 127 for c in name):
         raise ValueError('Name must fit 1-29 UTF-8 bytes without controls')
+    if not _valid_device_id(expected_device_id):
+        raise ValueError('A verified device UID is required to rename a device')
     # Caller must inspect capabilities first; sending extended frames to old
     # firmware could interpret their letters as legacy colour commands.
     report = await inspect_device(address, timeout=timeout)
     if report.get('device_id') != expected_device_id:
         raise ValueError('Selected device identity changed')
-    if report.get('identity_protocol') != 1 or not report.get('rename_supported'):
+    if (type(report.get('identity_protocol')) is not int or report['identity_protocol'] != 1
+            or report.get('rename_supported') is not True):
         raise ValueError('Firmware does not support persistent Bluetooth rename')
     wire = ('!' + json.dumps({'op': 'rename', 'name': name, 'device_id': expected_device_id},
                              ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
     ack = await _transaction(address, wire, lambda r: r.get('identity_ack') == 'rename' and
                              r.get('device_id') == expected_device_id, timeout)
-    if not ack.get('ok') or not ack.get('persistent') or ack.get('ble_name') != name:
+    if ack.get('ok') is not True or ack.get('persistent') is not True or ack.get('ble_name') != name:
         raise ValueError(ack.get('error', 'Rename was not persistently acknowledged'))
     return ack
 
@@ -154,21 +207,13 @@ async def _identify_sequence(address, device_id, restore, timeout):
     write still needs a restore attempt, but failed identity/notification setup
     must not trigger one. Cleanup failures must not replace the original error.
     """
-    pending = bytearray()
-    responses = asyncio.Queue()
+    reports = _ReportBuffer()
+    responses = asyncio.Queue(maxsize=64)
     def receive(_sender, data):
-        pending.extend(data)
-        while b'\n' in pending:
-            line, _, rest = pending.partition(b'\n')
-            pending[:] = rest
-            try:
-                response = json.loads(line.decode('utf-8'))
-                if isinstance(response, dict):
-                    responses.put_nowait(response)
-            except (ValueError, UnicodeError):
-                pass
-        if len(pending) > 8192:
-            pending.clear()
+        for response in reports.feed(data):
+            if responses.full():
+                responses.get_nowait()
+            responses.put_nowait(response)
     mutated = False
     command = None
     async def run(client):

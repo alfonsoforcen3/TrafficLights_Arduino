@@ -38,7 +38,7 @@ def discover_name():
 
 def main():
     if '--onboard' in sys.argv[1:]:
-        from scripts.onboard import main as onboard
+        from scripts.onboard import run_cli as onboard
         return onboard([arg for arg in sys.argv[1:] if arg != '--onboard'])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--transport', choices=['ble', 'serial'], default='ble')

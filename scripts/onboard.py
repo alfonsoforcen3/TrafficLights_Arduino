@@ -3,6 +3,10 @@
 import argparse
 import asyncio
 import importlib.util
+import hashlib
+import math
+import re
+import shlex
 import json
 import os
 from pathlib import Path
@@ -11,7 +15,6 @@ import socket
 import subprocess
 import sys
 import time
-import venv
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -20,6 +23,9 @@ from scripts import provider_setup, device_identity
 from scripts.platform_support import require_platform, venv_python
 
 RUNTIME = Path.home() / '.local/share/trafficlights'
+DEPENDENCY_TIMEOUT = 300
+INSTALL_TIMEOUT = 600
+
 
 
 class WizardUI:
@@ -82,7 +88,7 @@ def confirm(message, yes=False, input_fn=input):
 
 def select_device(devices, exact_name=None, address=None, input_fn=input):
     candidates = [d for d in devices if (not exact_name or d['name'] == exact_name)
-                  and (not address or d['address'] == address)]
+                  and (not address or d['address'].casefold() == address.casefold())]
     if not candidates:
         raise RuntimeError('No matching advertising Clawdy. Check power, Bluetooth permission, range, and that another laptop is disconnected.')
     if exact_name and len(candidates) == 1:
@@ -137,9 +143,9 @@ def ensure_dependencies(args, argv):
         raise RuntimeError('Setup cancelled before dependency installation.')
     python = venv_python(RUNTIME)
     if not python.exists():
-        venv.EnvBuilder(with_pip=True).create(RUNTIME / 'venv')
+        subprocess.run([sys.executable, '-m', 'venv', str(RUNTIME / 'venv')], check=True, timeout=120)
     ui.status('working', 'Preparing Bluetooth dependencies...')
-    subprocess.run([str(python), '-m', 'pip', 'install', 'bleak==0.22.3', 'pyserial==3.5'], check=True)
+    subprocess.run([str(python), '-m', 'pip', 'install', 'bleak==0.22.3', 'pyserial==3.5'], check=True, timeout=DEPENDENCY_TIMEOUT)
     ui.status('ok', 'Dependencies ready. Continuing setup in the private environment.')
     subprocess.run([str(python), str(Path(__file__).resolve()), *argv], check=True)
     return True
@@ -154,6 +160,8 @@ def human_confirmation(message, input_fn=input):
 
 def verify_install(device_id=None, timeout=30, ui=None):
     from scripts import verify_hardware
+    if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout < 0:
+        raise ValueError('Verification timeout must be finite and nonnegative.')
     ui = ui or WizardUI()
     ui.status('info', 'Allow the normal Bluetooth request for Traffic Light Bridge.')
     ui.detail('Hook permissions', 'Review hooks and workspace trust in each selected AI app.')
@@ -164,11 +172,19 @@ def verify_install(device_id=None, timeout=30, ui=None):
     while True:
         try:
             status = verify_hardware.request({'action': 'status'})
-            report = status.get('firmware_report') or {}
-            if (status.get('hardware_connected') is True and status.get('transport') == 'ble'
-                    and str(status.get('port', '')).startswith('ble://')
-                    and report.get('transport') == 'ble'
-                    and (not device_id or report.get('device_id') == device_id)):
+            if not isinstance(status, dict) or not isinstance(status.get('hardware_connected'), bool):
+                raise RuntimeError('Installed, but bridge status is malformed; Bluetooth delivery is not verified.')
+            report = status.get('firmware_report')
+            if report is not None and not isinstance(report, dict):
+                raise RuntimeError('Installed, but the firmware report is malformed; Bluetooth delivery is not verified.')
+            report = report or {}
+            if (status['hardware_connected'] and device_id is not None
+                    and report.get('device_id') != device_id):
+                raise RuntimeError('Installed, but Bluetooth delivery is not verified: connected toy identity differs from selection.')
+            port = status.get('port')
+            if (status['hardware_connected'] and status.get('transport') == 'ble'
+                    and isinstance(port, str) and port.startswith('ble://') and port[6:]
+                    and report.get('transport') == 'ble'):
                 break
         except (OSError, ValueError):
             pass
@@ -178,7 +194,7 @@ def verify_install(device_id=None, timeout=30, ui=None):
     ui.status('ok', 'Bluetooth identity and board connection verified.')
     ui.status('working', 'Checking red, amber, green, blinking red and off...')
     try:
-        verify_hardware.verify('ble')
+        verify_hardware.verify('ble', expected_device_id=device_id)
     except (AssertionError, OSError, ValueError) as error:
         raise RuntimeError('Installed, but LED acknowledgement test failed: ' + str(error)) from error
     if not human_confirmation('Did YOUR toy visibly show red, amber, green and blinking red during the test?'):
@@ -188,6 +204,123 @@ def verify_install(device_id=None, timeout=30, ui=None):
     ui.detail('Next', 'Review hooks, then try a real prompt, completion and input request in each AI app.')
     ui.status('pending', 'Real-provider acceptance, power-cycle, and laptop restart tests remain pending until actually performed.')
     return True
+
+
+class RecoveryRecord:
+    """Private per-unit checkpoint; records partial work without attempting rollback."""
+    def __init__(self, selected, report, target, providers):
+        identity = report.get('device_id') or (selected['address'] + ':' + report['ble_name'])
+        key = hashlib.sha256(str(identity).encode('utf-8')).hexdigest()[:24]
+        self.path = RUNTIME / 'onboarding' / (key + '.json')
+        self.data = {'version': 1, 'device_id': report.get('device_id'),
+                     'previous_name': report['ble_name'], 'target_name': target,
+                     'providers': list(providers)}
+
+    def save(self, phase):
+        self.data['phase'] = phase
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = self.path.with_name(self.path.name + '.%d.tmp' % time.time_ns())
+        try:
+            with open(temporary, 'x', encoding='utf-8') as output:
+                os.chmod(temporary, 0o600)
+                output.write(json.dumps(self.data, indent=2) + '\n')
+            temporary.replace(self.path)
+        finally:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass  # Cleanup must not replace the original checkpoint failure.
+
+    def explain(self, ui):
+        ui.status('pending', 'Setup did not finish. Device or host changes may already exist; no rollback was attempted.')
+        ui.detail('Recovery record', self.path)
+        if self.data['phase'] == 'rename_requested':
+            ui.detail('Find your toy', 'Rename acknowledgement was not confirmed. Look for either: '
+                      + self.data['previous_name'] + ' / ' + self.data['target_name'])
+        else:
+            ui.detail('Toy name', self.data['target_name'])
+        ui.detail('Before retrying', 'Inspect companion status and running installers; child processes or a service may remain.')
+        command = [sys.executable, str(ROOT / 'install.py'), '--onboard', '--ble-name',
+                   self.data['target_name'], '--keep-name']
+        command += ['--providers', *self.data['providers']] if self.data['providers'] else ['--no-hooks']
+        if sys.platform == 'win32':
+            # PowerShell uses the call operator and literal single-quoted args;
+            # list2cmdline only quotes CreateProcess argv and permits $ expansion.
+            formatted = '& ' + ' '.join("'" + arg.replace("'", "''") + "'" for arg in command)
+            label = 'PowerShell retry if the target advertises'
+        else:
+            formatted = shlex.join(command)
+            label = 'Shell retry if the target advertises'
+        ui.detail(label, formatted)
+        ui.detail('Safety', 'Identify the physical toy again. If it kept the old name, select that name instead.')
+
+
+def complete_setup(args, ui, selected, report, providers, nickname):
+    target = (device_identity.make_device_name(args.laptop_name, nickname, report['device_id'])
+              if nickname else report['ble_name'])
+    recovery = RecoveryRecord(selected, report, target, providers)
+    changes_possible = False
+    try:
+        if nickname:
+            ui.detail('Unique Bluetooth name', target)
+            recovery.save('rename_requested')
+            ui.detail('Recovery record', recovery.path)
+            changes_possible = True
+            ui.status('working', 'Saving the name on your toy...')
+            ack = asyncio.run(device_identity.rename_device(selected['address'], target, report['device_id']))
+            if (not isinstance(ack, dict) or ack.get('ok') is not True
+                    or ack.get('persistent') is not True or ack.get('ble_name') != target):
+                raise RuntimeError('Board did not acknowledge a persistent rename; host installation stopped.')
+            recovery.save('renamed')
+            ui.status('ok', 'Your toy confirmed the saved name.')
+        else:
+            ui.status('ok', 'Keeping your toy name: ' + target)
+        recovery.save('installing')
+        changes_possible = True
+        ui.phase(5, 'Install & check')
+        ui.status('working', 'Installing the local companion and your selected hooks...')
+        try:
+            subprocess.run(installer_command(target, providers, report.get('device_id')),
+                           check=True, timeout=INSTALL_TIMEOUT)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError('Companion installation timed out. The direct installer was stopped; '
+                               'child processes or installed components may remain.') from error
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError('Companion installation failed (exit %s); some components may already be installed.'
+                               % error.returncode) from error
+        recovery.save('installed_unverified')
+        if args.skip_verification:
+            ui.status('pending', 'Installed; Bluetooth delivery, visible LEDs and real provider acceptance remain unverified.')
+            ui.detail('Check next', 'python3 manage_hooks.py status; python3 scripts/verify_hardware.py')
+            ui.detail('Recovery record', recovery.path)
+            return 0
+        verified = verify_install(report.get('device_id'), ui=ui)
+        if verified:
+            recovery.save('hardware_verified')
+        return 0 if verified else 2
+    except (Exception, KeyboardInterrupt):
+        if changes_possible:
+            try:
+                recovery.explain(ui)
+            except (OSError, ValueError):
+                pass  # A closed terminal must not mask the original failure.
+        raise
+
+
+def run_cli(argv=None):
+    """Shared entrypoint for both install.py --onboard and direct wizard use."""
+    try:
+        return main(argv)
+    except KeyboardInterrupt:
+        print('Clawdy setup cancelled. No further setup actions will run; review any recovery details above.', file=sys.stderr)
+        return 130
+    except EOFError:
+        print('Clawdy setup stopped: terminal input ended. Rerun interactively and review any recovery details above.', file=sys.stderr)
+        return 2
+    except Exception as error:
+        message = WizardUI.text(str(error) or type(error).__name__)
+        print('Clawdy setup stopped: ' + message, file=sys.stderr)
+        return 1
 
 
 def parser():
@@ -211,6 +344,17 @@ def parser():
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parser().parse_args(argv)
+    if args.nickname is not None and not args.nickname.strip():
+        raise ValueError('Nickname cannot be empty or whitespace only.')
+    if not args.laptop_name.strip():
+        raise ValueError('Laptop name cannot be empty or whitespace only.')
+    if args.ble_name is not None and (not 1 <= len(args.ble_name.encode('utf-8')) <= 29
+            or any(ord(c) < 32 or ord(c) == 127 for c in args.ble_name)):
+        raise ValueError('Current Bluetooth name must fit 1-29 UTF-8 bytes without controls.')
+    if args.device_address is not None and not args.device_address.strip():
+        raise ValueError('Device discovery address cannot be blank.')
+    if args.providers is not None:
+        args.providers = list(dict.fromkeys(args.providers))
     if args.keep_name and args.nickname:
         raise ValueError('Choose --nickname or --keep-name, not both.')
     if args.providers and args.no_hooks:
@@ -223,6 +367,7 @@ def main(argv=None):
     ui.banner(args.laptop_name, preview=args.dry_run)
     if not args.dry_run:
         ui.phase(1, 'Prepare your laptop')
+        ui.status('info', 'Run only one Clawdy setup on this laptop at a time; concurrent enrollment is unsupported.')
         require_platform()
         # Fail explicit policy/configuration checks before downloading anything.
         # Bootstrap before interactive choices, since it relaunches with argv.
@@ -270,8 +415,10 @@ def main(argv=None):
     ui.phase(4, 'Make it yours')
     ui.status('working', 'Checking the selected toy firmware and identity...')
     report = asyncio.run(device_identity.inspect_device(selected['address']))
+    if not isinstance(report, dict):
+        raise RuntimeError('Selected toy returned a malformed firmware report.')
     final_name = report.get('ble_name')
-    if not final_name:
+    if not isinstance(final_name, str) or not 1 <= len(final_name.encode('utf-8')) <= 29 or any(ord(c) < 32 or ord(c) == 127 for c in final_name):
         raise RuntimeError('Verified board did not report its Bluetooth name.')
     if not sys.stdin.isatty() and not args.identified_device:
         raise RuntimeError('Physical selection needs confirmation. Run interactively or provide --identified-device only after independently identifying this exact toy.')
@@ -279,32 +426,16 @@ def main(argv=None):
     asyncio.run(device_identity.identify_device(selected['address'], report.get('device_id')))
     if not args.identified_device and not human_confirmation('Did YOUR toy show that red/amber/green sequence?'):
         raise RuntimeError('Device was not physically confirmed; no rename or host installation performed.')
-    if nickname:
-        if not report.get('rename_supported') or report.get('identity_protocol') != 1:
-            raise RuntimeError('This firmware cannot persist a Bluetooth rename. Rerun with --keep-name; factory firmware update is required for naming.')
-        desired = device_identity.make_device_name(args.laptop_name, nickname, report['device_id'])
-        ui.detail('Unique Bluetooth name', desired)
-        ui.status('working', 'Saving the name on your toy...')
-        ack = asyncio.run(device_identity.rename_device(selected['address'], desired, report['device_id']))
-        if not ack.get('ok') or not ack.get('persistent') or ack.get('ble_name') != desired:
-            raise RuntimeError('Board did not acknowledge a persistent rename; host installation stopped.')
-        final_name = desired
-        ui.status('ok', 'Your toy confirmed the saved name.')
-    else:
-        ui.status('ok', 'Keeping your toy name: ' + final_name)
-    ui.phase(5, 'Install & check')
-    ui.status('working', 'Installing the local companion and your selected hooks...')
-    subprocess.run(installer_command(final_name, providers, report.get('device_id')), check=True)
-    if args.skip_verification:
-        ui.status('pending', 'Installed; Bluetooth delivery, visible LEDs and real provider acceptance remain unverified.')
-        ui.detail('Check next', 'python3 manage_hooks.py status; python3 scripts/verify_hardware.py')
-        return 0
-    return 0 if verify_install(report.get('device_id'), ui=ui) else 2
+    if nickname and (report.get('rename_supported') is not True
+                     or type(report.get('identity_protocol')) is not int or report['identity_protocol'] != 1):
+        raise RuntimeError('This firmware cannot persist a Bluetooth rename. Rerun with --keep-name; factory firmware update is required for naming.')
+    identity = report.get('device_id')
+    if identity is not None and (not isinstance(identity, str) or not re.fullmatch(r'[0-9a-fA-F]{8,64}', identity)):
+        raise RuntimeError('Selected toy returned an invalid immutable identity; installation stopped.')
+    if nickname and identity is None:
+        raise RuntimeError('Selected toy did not report the immutable identity required for renaming.')
+    return complete_setup(args, ui, selected, report, providers, nickname)
 
 
 if __name__ == '__main__':
-    try:
-        raise SystemExit(main())
-    except (ValueError, RuntimeError, OSError, TimeoutError, subprocess.CalledProcessError) as error:
-        print('Clawdy setup stopped: ' + str(error), file=sys.stderr)
-        raise SystemExit(1)
+    raise SystemExit(run_cli())

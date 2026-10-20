@@ -1,6 +1,8 @@
 import contextlib
 import io
 import json
+import tempfile
+from pathlib import Path
 import unittest
 from unittest.mock import patch, AsyncMock
 from types import SimpleNamespace
@@ -9,6 +11,12 @@ from scripts import onboard
 
 class OnboardTests(unittest.TestCase):
     def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.runtime = Path(temporary.name)/'runtime'
+        runtime = patch.object(onboard, 'RUNTIME', self.runtime)
+        runtime.start()
+        self.addCleanup(runtime.stop)
         # A missed workflow mock must fail immediately, never touch Bluetooth.
         for operation in ('discover_candidates', 'inspect_device', 'identify_device', 'rename_device'):
             guard = patch.object(onboard.device_identity, operation,
@@ -75,6 +83,153 @@ class OnboardTests(unittest.TestCase):
         self.assertIn('[PENDING]',text)
         self.assertIn('remain unverified',text)
         self.assertNotIn('Clawdy is linked',text)
+
+    def setup_inputs(self):
+        args = onboard.parser().parse_args(['--nickname','Pip','--laptop-name','TestMac','--skip-verification'])
+        selected = {'name':'Factory','address':'MOCK-ONLY'}
+        report = {'ble_name':'Factory','device_id':'0123456789ABCDEF'}
+        return args, selected, report
+
+    def recovery_state(self):
+        files = list((self.runtime/'onboarding').glob('*.json'))
+        self.assertEqual(len(files),1)
+        return json.loads(files[0].read_text())
+
+    def test_lost_rename_ack_keeps_recovery_record_and_never_installs(self):
+        args,selected,report = self.setup_inputs()
+        with patch.object(onboard.device_identity,'rename_device',new=AsyncMock(side_effect=TimeoutError('ack lost'))), \
+                patch.object(onboard.subprocess,'run') as run, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            with self.assertRaisesRegex(TimeoutError,'ack lost'):
+                onboard.complete_setup(args,onboard.WizardUI(True),selected,report,['codex'],'Pip')
+        run.assert_not_called()
+        record = self.recovery_state()
+        self.assertEqual(record['phase'],'rename_requested')
+        self.assertEqual(record['previous_name'],'Factory')
+        self.assertIn('Look for either:',output.getvalue())
+        self.assertIn(record['target_name'],output.getvalue())
+        self.assertIn('no rollback was attempted',output.getvalue())
+
+    def test_rename_then_failed_installer_preserves_name_and_partial_status(self):
+        args,selected,report = self.setup_inputs()
+        target = onboard.device_identity.make_device_name('TestMac','Pip',report['device_id'])
+        ack = {'ok':True,'persistent':True,'ble_name':target}
+        for failure in (onboard.subprocess.CalledProcessError(7,['installer']),
+                        onboard.subprocess.TimeoutExpired(['installer'],onboard.INSTALL_TIMEOUT), KeyboardInterrupt()):
+            with self.subTest(failure=type(failure).__name__), \
+                    patch.object(onboard.device_identity,'rename_device',new=AsyncMock(return_value=ack)), \
+                    patch.object(onboard.subprocess,'run',side_effect=failure) as run, \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises((RuntimeError,KeyboardInterrupt)):
+                    onboard.complete_setup(args,onboard.WizardUI(True),selected,report,['codex'],'Pip')
+                self.assertEqual(run.call_args.kwargs['timeout'],onboard.INSTALL_TIMEOUT)
+                record = self.recovery_state()
+                self.assertEqual(record['phase'],'installing')
+                self.assertEqual(record['target_name'],target)
+                self.assertIn('--keep-name',output.getvalue())
+                self.assertIn('child processes or a service may remain',output.getvalue())
+                self.assertNotIn('Clawdy is linked',output.getvalue())
+
+    def test_checkpoint_failure_prevents_device_or_host_changes(self):
+        args,selected,report = self.setup_inputs()
+        with patch.object(onboard.RecoveryRecord,'save',side_effect=OSError('disk full')), \
+                patch.object(onboard.device_identity,'rename_device',new=AsyncMock()) as rename, \
+                patch.object(onboard.subprocess,'run') as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(OSError,'disk full'):
+                onboard.complete_setup(args,onboard.WizardUI(True),selected,report,[],'Pip')
+        rename.assert_not_awaited()
+        run.assert_not_called()
+
+    def test_unverified_and_verified_install_checkpoints_are_distinct(self):
+        args,selected,report = self.setup_inputs()
+        args.nickname = None
+        for verified, expected, phase in ((False,2,'installed_unverified'),(True,0,'hardware_verified')):
+            args.skip_verification = False
+            with self.subTest(verified=verified), patch.object(onboard.subprocess,'run'), \
+                    patch.object(onboard,'verify_install',return_value=verified), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(onboard.complete_setup(args,onboard.WizardUI(True),selected,report,[],None),expected)
+                self.assertEqual(self.recovery_state()['phase'],phase)
+
+    def test_reported_persistence_requires_real_booleans(self):
+        args,selected,report = self.setup_inputs()
+        target = onboard.device_identity.make_device_name('TestMac','Pip',report['device_id'])
+        with patch.object(onboard.device_identity,'rename_device',new=AsyncMock(return_value={
+                'ok':'true','persistent':'true','ble_name':target})), \
+                patch.object(onboard.subprocess,'run') as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError,'persistent rename'):
+                onboard.complete_setup(args,onboard.WizardUI(True),selected,report,[],'Pip')
+        run.assert_not_called()
+
+    def test_shared_cli_catches_eof_cancel_and_backend_errors(self):
+        import install
+        for error, expected in ((EOFError(),2),(KeyboardInterrupt(),130),(Exception('backend failed'),1)):
+            with self.subTest(error=type(error).__name__), \
+                    patch.object(onboard,'main',side_effect=error), \
+                    patch('sys.argv',['install.py','--onboard']), \
+                    contextlib.redirect_stderr(io.StringIO()) as output:
+                self.assertEqual(install.main(),expected)
+                self.assertNotIn('Traceback',output.getvalue())
+
+    def test_invalid_explicit_input_is_rejected_before_dependencies(self):
+        for argv in (['--nickname',' '],['--laptop-name',' '],['--ble-name','bad\nname'],['--device-address',' ']):
+            with self.subTest(argv=argv), patch.object(onboard,'ensure_dependencies') as deps:
+                with self.assertRaises(ValueError):
+                    onboard.main(argv)
+                deps.assert_not_called()
+
+    def test_malformed_bridge_status_is_controlled_and_cannot_pass(self):
+        from scripts import verify_hardware
+        for status in (None,[],{'hardware_connected':'yes'},
+                       {'hardware_connected':True,'firmware_report':['invalid']}):
+            with self.subTest(status=status), patch.object(verify_hardware,'request',return_value=status), \
+                    patch.object(verify_hardware,'verify') as verify, \
+                    patch('sys.stdin.isatty',return_value=False), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError,'not verified'):
+                    onboard.verify_install(timeout=0)
+                verify.assert_not_called()
+
+    def test_dependency_and_environment_creation_have_deadlines(self):
+        args = onboard.parser().parse_args(['--yes'])
+        with patch.object(onboard.importlib.util,'find_spec',return_value=None), \
+                patch.object(Path,'exists',return_value=False), \
+                patch.object(onboard.subprocess,'run') as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(onboard.ensure_dependencies(args,['--yes']))
+        self.assertEqual(run.call_args_list[0].kwargs['timeout'],120)
+        self.assertEqual(run.call_args_list[1].kwargs['timeout'],onboard.DEPENDENCY_TIMEOUT)
+
+    def test_windows_recovery_command_uses_literal_powershell_arguments(self):
+        selected = {'name':'Factory','address':'MOCK-ONLY'}
+        report = {'ble_name':'Factory','device_id':'0123456789ABCDEF'}
+        record = onboard.RecoveryRecord(selected,report,"$(echo PWNED)-O'Neil",[])
+        record.data['phase'] = 'installed_unverified'
+        with patch.object(onboard.sys,'platform','win32'), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            record.explain(onboard.WizardUI(True))
+        self.assertIn('PowerShell retry',output.getvalue())
+        self.assertIn("'$(echo PWNED)-O''Neil'",output.getvalue())
+        self.assertNotIn('"$(echo PWNED)',output.getvalue())
+        self.assertIn('& ',output.getvalue())
+
+    def test_legacy_keep_name_without_uid_does_not_rename_or_invent_identity(self):
+        identity = self.workflow_identity(False)
+        identity.inspect_device.return_value = {'ble_name':'Factory','mode':'O'}
+        with patch.object(onboard,'device_identity',identity), \
+                patch.object(onboard,'ensure_dependencies',return_value=False), \
+                patch.object(onboard,'require_platform',return_value='Darwin'), \
+                patch.object(onboard.subprocess,'run') as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            result = onboard.main(['--yes','--ble-name','Factory','--keep-name','--no-hooks',
+                                   '--identified-device','--skip-verification'])
+        self.assertEqual(result,0)
+        identity.rename_device.assert_not_awaited()
+        identity.identify_device.assert_awaited_once_with('A',None)
+        self.assertNotIn('--device-id',run.call_args.args[0])
+        self.assertIsNone(self.recovery_state()['device_id'])
 
     def test_name_preview_includes_unknown_identity_suffix(self):
         self.assertEqual(onboard.make_name('My-Mac', 'Clody'), 'My-Mac-Clody-<UID8>')
@@ -245,7 +400,7 @@ class OnboardTests(unittest.TestCase):
                 patch('sys.stdin.isatty', return_value=False), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertFalse(onboard.verify_install('abc'))
-        verify.assert_called_once_with('ble')
+        verify.assert_called_once_with('ble', expected_device_id='abc')
 
     def test_wrong_peer_identity_is_not_verified(self):
         from scripts import verify_hardware
