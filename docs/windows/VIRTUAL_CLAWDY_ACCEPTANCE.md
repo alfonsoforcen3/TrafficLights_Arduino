@@ -3,8 +3,9 @@
 Private WPF/Win32 prototype checklist. The Windows app targets .NET 10 and has
 separate `win-x64` and `win-arm64` publish options. Microsoft lists Windows 11
 x64 and Arm64 among .NET Windows architectures, but that is runtime support, not
-proof that this app works on either architecture. As of **2026-10-26, no native
-Windows UI acceptance is recorded here**. Run x64 and Arm64 as separate profiles;
+proof that this app works on either architecture. As of **2026-10-26, manual
+Windows laptop acceptance remains pending**. Automated Windows-runner results
+are recorded below. Run x64 and Arm64 as separate profiles;
 a build or run on one does not qualify the other. See the [Windows prototype
 README](../../desktop/windows/README.md), [macOS acceptance record](../VIRTUAL_CLAWDY_ACCEPTANCE.md), and [Windows findings](findings/2026-10-26-virtual-clawdy.md).
 
@@ -306,7 +307,29 @@ interaction, architecture, provider, and elapsed-time results in separate rows.
 | Sleep/lock/wake, host/collector cleanup | NOT RUN |
 | 24-hour and 72-hour native demo soaks | NOT RUN |
 | Clean quit; no startup/hooks/services/hardware side effects | NOT RUN |
-| Portable protocol/policy tests on Windows | NOT RUN |
+| Portable protocol/policy tests on Windows | PASS on isolated CI runner; laptop profile NOT RUN |
+
+## Automated Windows-runner evidence
+
+At source revision `c2ffb2b9839066761d99aba9b9351694b261f9b8`,
+[Checks run 40386324014](https://github.com/alfonsoforcen3/TrafficLights_Arduino/actions/runs/40386324014) passed all six jobs:
+
+- Windows policy/protocol fixtures and 13 lifecycle groups, repeated with direct
+  `python` and default `py` launcher resolution.
+- Windows WPF fixtures using the actual card, real dispatcher and render bitmap,
+  synthetic control/pointer events and fake launchers. The bundled illustration,
+  hover timers, notification gate, recent actions, Demo, Escape, repeated-click
+  admission, failure/stale callbacks and idempotent shutdown were exercised.
+- Native Windows publishing for win-x64 and win-arm64. Arm64 execution was not
+  performed on an Arm64 Windows machine.
+- Python regressions on Windows/macOS/Linux, documentation checks and native
+  macOS build/fixtures.
+
+This is real automated Windows execution, not a macOS simulation. It does not
+prove physical pointer delivery, foreground focus, OS notification-state changes,
+actual tray/Explorer behavior, Narrator, mixed-DPI displays, real chat recipients,
+provider integrations, forced-host cleanup or extended native UI stability. The
+manual laptop rows above retain their explicit NOT RUN status.
 
 ## Platform references and interpretation
 

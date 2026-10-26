@@ -44,8 +44,24 @@ consumed for that episode instead of reopening later after a reconnect.
   as errors. Both PE architecture headers, desktop-runtime contracts and exact
   copied collector sources were checked; test fixtures are absent from packages.
   Publishing is compile/package evidence, not UI acceptance.
-- Full local documentation-link check PASS. Final Windows CI evidence is
-  recorded after the candidate is pushed.
+- Full local documentation-link check PASS.
+
+## Automated Windows CI evidence
+
+[Checks run 40386324014](https://github.com/alfonsoforcen3/TrafficLights_Arduino/actions/runs/40386324014)
+passed all six jobs for source commit `c2ffb2b9839066761d99aba9b9351694b261f9b8`.
+The Windows runner passed policy/protocol checks, all lifecycle fixtures using
+both direct Python and the default `py` launcher, and the real WPF card fixtures
+with synthetic events/fake launchers. Windows-native publishing passed for
+win-x64 and win-arm64; Arm64 execution remains untested. The Python matrix on
+Windows/macOS/Linux and native Mac fixtures also passed.
+
+The WPF fixtures rendered the actual card and bundled illustration and exercised
+hover dwell/gap/exit, denied/allowed host notification gates, retained B-to-G
+actions, latest WIP, Demo/keyboard Escape, single-flight/failure/exception/stale
+completion paths and shutdown. They did not launch providers, create a tray host,
+connect a bridge or access hardware. These runner results do not qualify a
+Windows laptop profile or any remaining manual gate below.
 
 Reproduce the portable checks using the three projects under
 `desktop/windows/Validation`, `ProtocolChecks`, and `RuntimeChecks`. The last takes
