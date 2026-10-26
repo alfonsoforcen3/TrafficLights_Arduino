@@ -42,6 +42,11 @@ companion without starting hardware or installing hooks. Demo data and the
 floating island are explicit options. This is a private development build, not a
 customer-ready app. See the [design and acceptance plan](docs/VIRTUAL_CLAWDY_PLAN.md).
 
+The [private Windows tray prototype](desktop/windows/README.md) brings the same
+traffic lights and hover/attention card to WPF. Its build and portable fixtures
+are tested separately from [native Windows acceptance](docs/windows/VIRTUAL_CLAWDY_ACCEPTANCE.md),
+which still requires a Windows laptop. It is not installed by the physical-device installer.
+
 ### Existing maintainer/tester installation
 
 The source workflow below requires authorized access to this private repository. Customer documentation lives in [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup); a standalone signed consumer installer is still pending.
