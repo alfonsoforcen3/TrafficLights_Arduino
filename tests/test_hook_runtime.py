@@ -24,6 +24,70 @@ spec.loader.exec_module(traffic)
 
 
 class HookRuntimeTests(unittest.TestCase):
+    def test_missing_or_invalid_chat_identity_never_creates_process_scoped_state(self):
+        args=SimpleNamespace(event='Y',provider='codex',session_id=None)
+        invalid=(None,'','   ',False,7,[],{},['chat'],{'id':'chat'},'chat\ncontrol','chat\x00control')
+        for identity in invalid:
+            payload={'hook_event_name':'PreToolUse','session_id':identity}
+            with self.subTest(identity_type=type(identity).__name__), \
+                    patch.object(traffic,'read_payload',return_value=payload), \
+                    patch.object(traffic.os,'getppid',side_effect=AssertionError('PID is not a chat identity')):
+                self.assertEqual(traffic.parse_input(args),(None,None))
+        with patch.object(traffic,'read_payload',return_value={}):
+            self.assertEqual(traffic.parse_input(args),(None,None))
+
+    def test_valid_identity_aliases_and_explicit_custom_ids_are_preserved(self):
+        for provider in ('codex','claude','gemini','cursor','custom'):
+            args=SimpleNamespace(event='Y',provider=provider,session_id=None)
+            for key in ('conversationId','sessionId','conversation_id','session_id'):
+                with self.subTest(provider=provider,key=key), \
+                        patch.object(traffic,'read_payload',return_value={key:'stable-雪-chat'}):
+                    self.assertEqual(traffic.parse_input(args),(provider+':stable-雪-chat','Y'))
+            args.session_id='explicit-chat'
+            with patch.object(traffic,'read_payload',return_value={'session_id':'payload-chat'}):
+                self.assertEqual(traffic.parse_input(args),(provider+':explicit-chat','Y'))
+            args.session_id=''
+            with patch.object(traffic,'read_payload',return_value={'session_id':'payload-chat'}):
+                self.assertEqual(traffic.parse_input(args),(None,None))
+
+    def test_missing_identity_skips_delivery_and_keeps_required_provider_outputs(self):
+        for provider,silent,cursor_prompt,expected in (
+                ('codex',False,False,'{}\n'),('gemini',False,False,'{}\n'),
+                ('claude',True,False,''),('cursor',False,True,'{"continue": true}\n')):
+            args=SimpleNamespace(event='Y',provider=provider,session_id=None,
+                                 silent=silent,cursor_prompt=cursor_prompt)
+            with self.subTest(provider=provider),patch.object(traffic,'options',return_value=args), \
+                    patch.object(traffic,'read_payload',return_value={}), \
+                    patch.object(traffic,'send_via_tcp',side_effect=AssertionError('No unidentified delivery')), \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(SystemExit) as ended:traffic.main()
+                self.assertEqual(ended.exception.code,0)
+            self.assertEqual(output.getvalue(),expected)
+
+    def test_partial_start_then_real_stop_cannot_leave_a_phantom_working_record(self):
+        delivered=[]
+        args=SimpleNamespace(event='',provider='codex',session_id=None,silent=False,cursor_prompt=False)
+        for payload in ({'hook_event_name':'PreToolUse'},
+                        {'hook_event_name':'Stop','conversation_id':'real-chat'}):
+            with patch.object(traffic,'options',return_value=args), \
+                    patch.object(traffic,'read_payload',return_value=payload), \
+                    patch.object(traffic,'send_via_tcp',side_effect=lambda sid,state:delivered.append((sid,state))), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as ended:traffic.main()
+                self.assertEqual(ended.exception.code,0)
+        self.assertEqual(delivered,[('codex:real-chat','G')])
+
+    def test_explicit_global_maintenance_remains_available_without_chat_identity(self):
+        for provider in ('codex','claude','gemini','cursor','custom'):
+            for event in ('RESET','CLEAR'):
+                args=SimpleNamespace(event=event,provider=provider,session_id=None)
+                with self.subTest(provider=provider,event=event), \
+                        patch.object(traffic,'read_payload',return_value={}):
+                    self.assertEqual(traffic.parse_input(args),(provider+':manual-control','RESET'))
+                args.session_id='explicit-chat'
+                with patch.object(traffic,'read_payload',return_value={}):
+                    self.assertEqual(traffic.parse_input(args),(provider+':explicit-chat','RESET'))
+
     def test_bad_payload_is_empty_and_size_is_bounded(self):
         for value in ('[]', 'null', '1', 'oops', '{"error":true}'*10):
             self.assertEqual(traffic.read_payload(io.StringIO(value), max_bytes=20), {})

@@ -190,9 +190,9 @@ def send_via_tcp(session_id, char_code):
 
 def options():
     parser = argparse.ArgumentParser(description='Send a provider/session lifecycle signal to the traffic light.')
-    parser.add_argument('event', nargs='?', default='')
+    parser.add_argument('event', nargs='?', default='', help='Lifecycle state/event; RESET and CLEAR are explicit global maintenance')
     parser.add_argument('--provider', default='codex', help='Provider namespace, e.g. codex, claude, custom')
-    parser.add_argument('--session-id', help='Stable chat ID for integrations without JSON stdin')
+    parser.add_argument('--session-id', help='Stable chat ID required without valid JSON identity, except global RESET/CLEAR')
     parser.add_argument('--trafficlights-hook', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--cursor-prompt', action='store_true', help='Cursor prompt observer response; never a tool approval')
     parser.add_argument('--silent', action='store_true', help='Emit no stdout context (Claude command hooks)')
@@ -204,14 +204,28 @@ def options():
 def parse_input(args=None):
     args = options() if args is None else args
     arg = args.event.strip().upper()
-    session_id = f"proc_{os.getppid()}"
-    parsed_payload = {}
-
     parsed_payload = read_payload()
-    session_id = (parsed_payload.get('conversationId') or parsed_payload.get('sessionId') or
-                  parsed_payload.get('conversation_id') or parsed_payload.get('session_id') or session_id)
-
-    session_id = args.provider + ':' + str(args.session_id or session_id)
+    def valid_identity(value):
+        return (isinstance(value,str) and bool(value.strip())
+                and not any(ord(character)<32 or ord(character)==127 for character in value))
+    identity = args.session_id
+    if identity is None:
+        identity = next((parsed_payload[key] for key in
+                         ('conversationId','sessionId','conversation_id','session_id')
+                         if valid_identity(parsed_payload.get(key))),None)
+    if not valid_identity(identity):
+        if arg in ('RESET','CLEAR'):
+            # Explicit global maintenance does not create a session record.
+            return args.provider + ':manual-control','RESET'
+        # Missing/partial hook payloads used to create proc_<parent pid> records.
+        # That parent can outlive every chat; a later Stop with the real chat ID
+        # cannot clear its orphaned Y. Skip unidentified events, including terminal
+        # ones, rather than merging unrelated chats or guessing completion.
+        # Custom integrations without JSON must supply --session-id consistently.
+        return None,None
+    session_id = args.provider + ':' + identity
+    if arg in ('RESET','CLEAR'):
+        return session_id,'RESET'
     event = str(parsed_payload.get('hook_event_name') or parsed_payload.get('event') or '').upper()
     if args.provider == 'gemini' and event == 'NOTIFICATION':
         return session_id, 'B' if parsed_payload.get('notification_type') == 'ToolPermission' else None
@@ -220,10 +234,6 @@ def parse_input(args=None):
             return session_id, 'R' if parsed_payload.get('status') == 'error' else 'G'
         return session_id, {'BEFORESUBMITPROMPT':'Y','AFTERAGENTTHOUGHT':'Y',
                             'AFTERAGENTRESPONSE':'Y','SESSIONSTART':'G','SESSIONEND':'O'}.get(event, EVENT_MAP.get(arg, 'Y'))
-    # Determine command/color
-    if arg in ("RESET", "CLEAR"):
-        return session_id, "RESET"
-
     # Input required trigger
     if arg in ("B", "BLINK", "INPUT", "ASK", "NOTIFICATION"):
         return session_id, "B"
