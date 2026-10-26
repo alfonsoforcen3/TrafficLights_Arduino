@@ -48,3 +48,12 @@ Windows work: the installer selects native macOS or Windows; Windows acceptance 
 Native desktop installation: install.py selects macOS/Windows automatically; read docs/windows/INSTALL.md on Windows. Native Windows acceptance for this revision remains pending; distinguish reported previous hardware results from local mocked tests. Never reconnect a released laptop during code-only verification.
 
 Firmware updates: preserve per-unit configuration, include pwm_led.py before code.py, and verify green_pwm_duty=32768 at 5 kHz for default 50% green duty. Read docs/windows/findings/2026-10-07-mac-integration.md for latest evidence and Windows next steps. Never bypass corporate USB/network policy; firmware may be updated on an authorized personal Mac. A PWM duty is not a calibrated perceived-brightness measurement.
+
+ESP32-C3 Super Mini LED acceptance (2026-10-26): owner confirmed the separate
+USB-connected ESP32-C3 unit works with red GPIO3, amber GPIO2, green GPIO1,
+active-high. Read docs/findings/2026-10-26-esp32c3-led-test.md and
+firmware/esp32c3_led_test/README.md before tomorrow's installation. Complete4MiB
+pre-test flash backup is private in the local cache. The standalone test is
+flashed; full Bluetooth/provider firmware has NOT been accepted on this ESP32.
+Owner unplugged it after success; do not reconnect it or another unit incidentally.
+Do not confuse this ESP32 with either nRF board or flash a nice_nano UF2 to it.

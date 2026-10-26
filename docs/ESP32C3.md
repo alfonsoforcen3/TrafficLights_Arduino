@@ -7,6 +7,15 @@ flashed, or physically accepted in this iteration. No GPIO assignment, battery
 charger, power circuit, OLED wiring or vendor-specific “SuperMini” compatibility
 has been inferred.
 
+## Standalone LED test accepted on one unit — 26 October 2026
+
+A separate [cable-only diagnostic](../firmware/esp32c3_led_test/README.md) was
+compiled, uploaded and physically confirmed on the owner's ESP32-C3 Super Mini:
+red GPIO3, amber GPIO2, green GPIO1, active-high. All five test phases were also
+verified by USB GPIO readback. See the [test evidence](findings/2026-10-26-esp32c3-led-test.md).
+This acceptance applies to that diagnostic and unit only. The BLE engineering
+candidate below has not thereby gained full-target or physical BLE acceptance.
+
 ## Factory inputs and build boundary
 
 Factory must identify the exact board/module and supplier schematic, USB/power
