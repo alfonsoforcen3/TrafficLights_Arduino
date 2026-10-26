@@ -1,0 +1,49 @@
+VIRTUAL CLAWDY — PRIVATE MACOS ISLAND RENDERER
+20 October 2026
+
+Owner's latest direction: a much smaller Dynamic Island style capsule centered
+below the camera/menu work area, with the traffic light laid horizontally.
+Compact 196 x 40 pt; attention/error or explicit move mode 252 x 66 pt.
+Native vector mini Clawdy preserves the 45 mm CAD body's rectangular silhouette,
+four leg intervals and black square eyes. The horizontal three-lens strip is a
+presentation interpretation, not a manufacturing drawing. Reference: existing
+independent models/generators/build_integrated_45mm.js and faithful
+site/assets/clawdy-hero.png. No CAD or printable files bundled.
+
+Graphite capsule, state light bloom, explicit WIP count (including zero), understated
+DEMO label and bounded size transitions are drawn with AppKit/Core Animation.
+The anchor is stable; no hover loop or continuous redraw timer. Only visible
+state, appearance or preference changes repaint cached vectors. Reduced motion,
+pause/hidden/sleep/move modes disable transitions. Default click-through;
+explicit move mode permits drag. Monitor changes restore the safe top center.
+
+Main-queue pongs use nonblocking POSIX pipe writes with only one latest pending
+pong and one writability source under backpressure. SIGPIPE is ignored; broken
+stdout or stdin EOF closes the renderer. No network, hardware, hooks, startup,
+screen recording, global input monitor or AI-control capability is included.
+
+Private acceptance mode --acceptance-test creates only an offscreen native
+NSPanel fixture, checks native window/accessibility properties and foreground
+identity, and calls production preference/lifecycle handlers with injected
+geometry/motion observations. No physical clicks, global settings, display
+hotplug, sleep/lock, fullscreen or VoiceOver speech are performed. Pure placement
+checks cover 280 screen/inset/state/move combinations, including very short work
+areas: panels shrink below the safe top rather than intruding into excluded UI.
+
+AI app presentation uses snapshot.providers (names Codex/Claude/Gemini/Cursor/
+Other), with no inference about underlying model. Working state shows the app
+name beside an explicit N WIP badge. Mixed app names rotate at five-second
+intervals only while visible, unpaused, working and motion is allowed. This slow
+clock stops while hidden, asleep, paused, moving, reduced motion or single-app.
+Expanded detail and accessibility retain the full static app summary.
+
+Uncertain states with reported WIP retain an Unclear main label and a static
+app subtitle (for example Codex +1). They never rotate apps or imply freshness;
+the full app summary remains available through accessibility and expanded mode.
+
+21 October — expanded menu card branding
+ClawdyProduct.png is copied unchanged from site/assets/clawdy-hero.png, the
+faithful transparent CAD product illustration, NOT a photograph. Use it as the
+branded card's temporary product image while awaiting an owner-supplied physical
+toy photo. No invented photographic provenance or physical acceptance claim.
+Keep the full mascot and traffic-light silhouette visible in an aspect-fit tile.

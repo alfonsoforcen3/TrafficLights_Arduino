@@ -2,6 +2,19 @@
 
 **Private planning draft · 20 October 2026 · no implementation authorized by this document**
 
+The owner subsequently authorized a private macOS prototype on 20 October 2026.
+Its [build instructions and current boundaries](../desktop/macos/README.md) are
+separate from this design. This document remains a proposed release architecture;
+the prototype does not establish every acceptance target below.
+The owner then chose a much smaller, top-center island below the camera, with
+the light post horizontal. That direction supersedes the initial corner-anchor
+visual proposal below; retain the same safety, privacy and recovery boundaries.
+The latest preference is menu-bar-only traffic lights, with no floating island
+by default. The island is optional; the default observer preserves reported
+colours while qualifying confidence separately. See the acceptance record for
+current implementation evidence rather than treating the earlier visual plan
+as the active default.
+
 ## 1. Decision and scope
 
 Build a small, floating Clawdy for **macOS first**, using native Swift/AppKit

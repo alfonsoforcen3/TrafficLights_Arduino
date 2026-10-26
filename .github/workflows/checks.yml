@@ -36,3 +36,19 @@ jobs:
         run: |
           python scripts/check_docs.py
           git diff --check
+  native-macos:
+    name: Native macOS prototype build and fixtures
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build private native prototype
+        run: bash desktop/macos/build.sh
+      - name: Run native hardware-free fixtures
+        shell: bash
+        run: |
+          app="$HOME/Library/Caches/ClawdyPrototype/Build/VirtualClawdy.app/Contents/MacOS"
+          "$app/VirtualClawdy" --self-test
+          "$app/VirtualClawdy" --attention-self-test
+          "$app/ClawdyRenderer" --self-test

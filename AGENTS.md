@@ -57,3 +57,11 @@ pre-test flash backup is private in the local cache. The standalone test is
 flashed; full Bluetooth/provider firmware has NOT been accepted on this ESP32.
 Owner unplugged it after success; do not reconnect it or another unit incidentally.
 Do not confuse this ESP32 with either nRF board or flash a nice_nano UF2 to it.
+
+Virtual Clawdy: desktop/macos is the private native menu-bar prototype; read its
+README and docs/VIRTUAL_CLAWDY_ACCEPTANCE.md before building or changing it.
+Use isolated cached builds/tests; do not restart the user's trial incidentally.
+Chat routing IDs are host-only: every renderer snapshot, including startup, must
+use ParentMessage.rendererSnapshot. No default hooks/hardware/startup installation.
+Windows virtual UI is a separate prototype/acceptance target from the existing
+Windows physical-device bridge. Never claim native Windows UI testing on macOS.

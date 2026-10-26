@@ -34,6 +34,14 @@ This candidate stays private until the owner approves release and physical
 acceptance passes. A clean distribution bundle can be prepared using
 `python3 scripts/build_customer_bundle.py`; it does not publish anything.
 
+### Private virtual companion prototype
+
+The [native macOS prototype](desktop/macos/README.md) displays traffic lights,
+reported WIP and AI apps in the menu bar. It observes an already-running local
+companion without starting hardware or installing hooks. Demo data and the
+floating island are explicit options. This is a private development build, not a
+customer-ready app. See the [design and acceptance plan](docs/VIRTUAL_CLAWDY_PLAN.md).
+
 ### Existing maintainer/tester installation
 
 The source workflow below requires authorized access to this private repository. Customer documentation lives in [TrafficLights_Setup](https://github.com/alfonsoforcen3/TrafficLights_Setup); a standalone signed consumer installer is still pending.
