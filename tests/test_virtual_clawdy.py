@@ -338,7 +338,13 @@ class VirtualClawdyTests(unittest.TestCase):
     def test_nested_json_cannot_crash_the_observer(self):
         fake=FakeSocket([b'['*2000+b'0'+b']'*2000+b'\n'])
         self.socket.side_effect=None;self.socket.return_value=fake
-        self.assertEqual(collector.observe_view(),core.disconnected_view())
+        # Python 3.9 raises RecursionError for this frame; newer JSON parsers
+        # may decode it and reject the non-object status at schema validation.
+        # Both must clear activity and remain unknown, without crashing.
+        view = collector.observe_view()
+        self.assertIn(view['state'], ('disconnected', 'uncertain'))
+        self.assertEqual(view['confidence'], 'unknown')
+        self.assertEqual((view['working_count'], view['providers']), (0, []))
         self.assertTrue(fake.closed)
 
     def test_invalid_deadlines_do_not_create_connections(self):

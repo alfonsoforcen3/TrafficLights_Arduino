@@ -24,3 +24,10 @@ A macOS CI job now builds the native sources and runs hardware-free native
 fixtures. This does not publish an app or establish native Windows acceptance.
 Windows planning/implementation starts only after this Mac source push, in its
 own bounded assignments, with no implication of release readiness.
+
+Initial GitHub checks built the native Mac app successfully. Python3.12 jobs
+exposed one test assumption: newer JSON parsers decode a deeply nested but
+syntactically valid non-object frame where Python3.9 raises RecursionError. Both
+paths already return unknown confidence with no activity. The regression now
+asserts those safety properties and accepts the appropriate disconnected/uncertain
+classification instead of depending on the interpreter's recursion limit.
