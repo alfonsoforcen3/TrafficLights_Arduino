@@ -17,7 +17,7 @@
         >✳ <span data-name>Clawdy</span><small>DESK COMPANIONS</small></a
       >
       <nav aria-label="Main">
-        <a href="#setup">Get started</a><a href="#battery">My companion</a
+        <a href="#setup">Get started</a><a href="#status">My companion</a
         ><button class="shop preview">Meet your next companion ↗</button>
       </nav>
     </header>
@@ -89,53 +89,24 @@
           <p>Red signals an error or a request for your attention.</p>
         </article>
       </section>
-      <section id="battery" class="battery">
+      <section id="status" class="device-status">
         <div>
           <p class="eyebrow">YOUR COMPANION, AT A GLANCE</p>
-          <h2>A little energy check.</h2>
-          <p class="intro">Real board readings, kept on your Mac.</p>
-          <div class="connection">
-            <i id="connection-dot"></i
-            ><span id="connection">Checking local bridge…</span>
-          </div>
-          <p id="battery-note" class="note">
-            Waiting for a real reading. No simulated battery data.
-          </p>
-          <a
-            id="local-link"
-            class="primary"
-            href="http://127.0.0.1:8766/#battery"
-            hidden
-            >Open my Mac dashboard ↗</a
-          >
+          <h2>A little status check.</h2>
+          <p class="intro">USB powered. Connected over Bluetooth.</p>
+          <div class="connection"><i id="connection-dot"></i><span id="connection">Checking local bridge…</span></div>
+          <p id="status-note" class="note">Waiting for a current report from your Clawdy.</p>
+          <a id="local-link" class="primary" href="http://127.0.0.1:8766/#status" hidden>Open my local dashboard ↗</a>
         </div>
-        <div class="battery-card">
-          <div class="card-top">
-            <span>BATTERY MONITOR</span
-            ><span id="sample-age">LIVE DATA ONLY</span>
-          </div>
-          <div class="charge">
-            <strong id="percent">—</strong><span>estimated charge</span>
-          </div>
-          <div class="meter"><div id="meter-fill"></div></div>
+        <div class="status-card">
+          <div class="card-top"><span>CLAWDY STATUS</span><span id="sample-age">CURRENT REPORT ONLY</span></div>
+          <div class="status-heading"><strong id="light-state">Waiting</strong></div>
           <div class="readings">
-            <div><small>Battery voltage</small><b id="voltage">—</b></div>
-            <div><small>Sensor voltage</small><b id="sensor">—</b></div>
-            <div><small>Trend</small><b id="trend">Awaiting samples</b></div>
+            <div><small>Connection</small><b id="transport">—</b></div>
+            <div><small>Firmware</small><b id="firmware">—</b></div>
+            <div><small>Display</small><b id="display-phase">—</b></div>
           </div>
-          <svg
-            class="chart"
-            viewBox="0 0 600 100"
-            role="img"
-            aria-label="Recent battery sensor voltage trend"
-          >
-            <path id="chart-line" d="" />
-          </svg>
-          <p>
-            Voltage percentage is an estimate. This board does not report
-            charger status; a rising reading cannot confirm safe charging or
-            charge completion.
-          </p>
+          <p>Reported light state is not proof that a real provider turn completed. Setup also checks the visible LEDs and your selected AI applications.</p>
         </div>
       </section>
       <section id="setup" class="setup">
@@ -146,18 +117,16 @@
             <span>01</span>
             <h3>Power your companion.</h3>
             <p>
-              Your finished toy arrives with its firmware installed. Switch it
-              on and keep it nearby.
+              Your finished toy arrives with its firmware installed. Connect its USB power and keep it nearby.
             </p>
           </article>
           <article>
             <span>02</span>
-            <h3>Give your Mac a hello.</h3>
+            <h3>Tell your AI hello.</h3>
             <p>
-              The Mac companion installer is in preparation. It connects over
-              Bluetooth and detects supported local AI tools.
+              Ask your local AI with terminal access to set up your new Clawdy using the public repository. The guided terminal wizard finds your toy and installed supported AI tools.
             </p>
-            <button class="text preview">Installer preview ↗</button>
+            <a class="text" href="https://github.com/alfonsoforcen3/TrafficLights_Arduino#set-up-your-clawdy-with-your-ai">AI-assisted setup ↗</a>
           </article>
           <article>
             <span>03</span>
@@ -184,15 +153,7 @@
             and working over done.
           </p>
         </details>
-        <details>
-          <summary>Can I check charging here?</summary>
-          <p>
-            You can follow measured voltage over time on the Mac dashboard. The
-            current clone’s battery sensing and charger specifications still
-            require hardware verification. Do not treat a percentage or voltage
-            trend as approval to charge.
-          </p>
-        </details>
+
       </section>
       <section class="closing">
         <p class="eyebrow">GOOD WORK DESERVES GOOD COMPANY.</p>
@@ -206,7 +167,7 @@
     <footer>
       <span class="brand">✳ <span data-name>Clawdy</span></span
       ><span>Little signals for big ideas.</span
-      ><a href="https://github.com/alfonsoforcen3/TrafficLights_Setup"
+      ><a href="https://github.com/alfonsoforcen3/TrafficLights_Arduino"
         >Setup & support ↗</a
       >
     </footer>

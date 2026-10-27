@@ -12,7 +12,7 @@ Prioritize integrations by tester demand and lifecycle reliability. Add a provid
 
 OpenCode and Windsurf are **candidates, not installed or supported adapters in this release**. Do not auto-create configuration for them until an adapter is implemented and accepted.
 
-Product work should come first: reliable battery/reconnect acceptance, clean-Mac onboarding, standalone signed/notarized installation, robust device identity/enrollment, and update/rollback. Expanding an unverified provider list does not replace those release gates.
+Product work should come first: reliable USB power/reconnect acceptance, clean-Mac onboarding, standalone signed/notarized installation, robust device identity/enrollment, and update/rollback. Expanding an unverified provider list does not replace those release gates.
 
 The [Virtual Clawdy plan](VIRTUAL_CLAWDY_PLAN.md) proposes a macOS desktop
 companion using the same status semantics, with an explicit virtual-only mode,

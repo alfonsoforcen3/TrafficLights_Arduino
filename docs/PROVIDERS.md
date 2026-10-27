@@ -6,9 +6,9 @@ The shared bridge tracks `provider:session_id` records. Two Codex sessions, two 
 
 ```bash
 python3 scripts/provider_setup.py --detect  # read-only inventory
-python3 install.py                         # install bridge + hooks for detected supported tools
-python3 install.py --providers codex claude gemini cursor  # explicit selection
-python3 install.py --providers claude       # only selected hooks; other hooks remain
+python3 install.py --onboard               # guided device selection and app approval
+python3 install.py --onboard --providers codex claude gemini cursor  # explicit selection
+python3 install.py --onboard --providers claude  # only selected hooks; other hooks remain
 python3 install.py --no-hooks               # update shared bridge only
 ```
 

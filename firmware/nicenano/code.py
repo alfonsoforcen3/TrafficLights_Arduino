@@ -21,7 +21,7 @@ def output(pin):
 def decode_legacy_commands(data):
     """Accept only single-byte legacy commands; malformed RX cannot stop LEDs."""
     return ''.join(chr(value).upper() for value in data
-                   if value in b'GYRBOQVTXgyrboqvtx')
+                   if value in b'GYRBOQTXgyrboqtx')
 
 # Preserve the original wiring unless a per-unit profile explicitly selects another supported pin.
 green_pin = 'P0.10'
@@ -59,8 +59,6 @@ connection_display = ConnectionDisplay()
 display_phase = None
 ble = None
 ble_error = None
-battery = None
-battery_error = None
 oled = None
 oled_error = None
 if config.get('oled_enabled', False):
@@ -68,11 +66,6 @@ if config.get('oled_enabled', False):
         import oled_display as oled
     except Exception as error:
         oled_error = str(error)
-try:
-    from battery import Battery
-    battery = Battery()
-except Exception as error:
-    battery_error = str(error)
 try:
     from ble_link import Link
     ble = Link()
@@ -101,9 +94,7 @@ def report(transport='usb'):
                         'device_id': ble.device_id if ble else None,
                         'identity_protocol': 1,
                         'rename_supported': ble.rename_supported if ble else False,
-                        'ble_error': ble_error,
-                        'battery': battery.sample() if battery else None,
-                        'battery_error': battery_error}) + '\n').encode()
+                        'ble_error': ble_error}) + '\n').encode()
     if transport == 'ble' and ble:
         ble.send(data)
     elif port.connected:
@@ -135,11 +126,7 @@ while True:
         for cmd in decode_legacy_commands(commands):
             if cmd == 'X' and transport == 'usb':
                 microcontroller.reset()  # Local maintenance reset; never exposed over BLE.
-            if cmd == "V":
-                if battery:
-                    battery.sample(force=True)
-                report(transport)
-            elif cmd == "Q":
+            if cmd == "Q":
                 report(transport)
             elif cmd == "T":
                 for color in "RYG":

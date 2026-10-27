@@ -57,7 +57,6 @@ Exact PowerShell commands actually executed successfully. Distinguish first inst
 - Unsupported / not tested:
 - Required user permissions and trust review:
 - Startup and reconnection limits:
-- Battery/charging: remain unverified unless independently qualified.
 - Failures still open and specific next action:
 
 ## Repository handoff

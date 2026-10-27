@@ -14,7 +14,7 @@ Start with `python3 manage_hooks.py status` and ~/.local/share/trafficlights/bri
 | No dedicated serial response | Reset after boot.py changes; confirm data-only USB CDC port and correct firmware |
 | New hooks pending trust | Review /hooks; moving repo or changing interpreter/commands changes definitions |
 | Red/amber remains after a crashed chat | Close/finish chats normally or use manage_hooks.py reset to clear all sessions |
-| Battery switch off but LEDs stay on | USB is still supplying power |
+| LEDs remain on after disconnecting the computer data cable | USB still supplies power; disconnect the USB power cable to switch the toy off |
 
 The helper listens only on 127.0.0.1:8765. Do not expose this port externally. If another process owns it, identify the process before stopping it. On macOS inspect `launchctl print gui/$(id -u)/local.trafficlights.bridge`; restart only that owned service using `launchctl kickstart -k gui/$(id -u)/local.trafficlights.bridge`.
 

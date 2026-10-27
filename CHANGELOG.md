@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-10-27 — Factory ESP32-C3 and buyer-first enrollment
+
+- Programmed unit `5D1C` with production ESP32-C3 firmware using its confirmed
+  GPIO3/2/1 wiring, leaving it searching without a Bluetooth connection here.
+- Corrected NimBLE target APIs, Arduino UUID naming collisions and a reproduced
+  USB rename-reply truncation; added bounded transport recovery regressions.
+- Made buyer setup the local-agent entry point, enforced BLE runtime, and added
+  explicit provider consent, saved-profile replacement checks and optional
+  exact-selected USB identity matching.
+- Updated maintainer/handoff examples for explicit approved provider selection
+  and added a real ESP32-C3 target compilation job.
+
+Verification: 273 hardware-free regression tests passed. The full target built,
+USB upload verified four region hashes, and USB identity/GPIO diagnostics,
+invalid rename rejection, complete valid rename acknowledgements and persistent
+names across two software reboots passed. Factory name was restored; owner
+confirmed production search LEDs. No BLE scan/connection, host install or hook
+changes were performed for this unit. Buyer-host BLE/provider acceptance,
+physical power cycles and native Windows acceptance remain pending. See the
+[factory record](docs/findings/2026-10-27-esp32c3-factory-handoff.md).
+
+## 2026-10-27 — AI-assisted buyer setup and USB-powered product
+
+- Made the implementation repository publicly readable and verified anonymous access.
+- Added a buyer setup request and local-agent instructions for selecting, identifying,
+  naming and configuring a pre-flashed Clawdy through guided onboarding.
+- Standardized the product on USB power and a connection/light-status dashboard.
+- Consumer packaging and physical customer acceptance remain separate release gates.
+
+Verification: 258 hardware-free Python tests passed, including extracted-bundle
+offline preflight/dry-run and intent-path cases. JavaScript syntax, dashboard
+stale/unknown handling and the self-contained AI setup request passed local
+checks. No board was contacted or flashed, and no installed runtime or hook was
+changed. Clean-customer hardware and native Windows onboarding remain pending.
+
 ## 2026-10-19 — Wizard polish and accurate private website preview
 
 - Polished terminal onboarding with five phases, optional colour, plain-output
@@ -53,16 +88,14 @@ Evidence: 49 local hardware-free tests pass; BLE R/Y/G/B/O and working/provider 
 - Added Nordic UART BLE, chunked GPIO acknowledgements, a Mac Bluetooth helper/login service, and automatic reconnect/heartbeat.
 - Removed unsafe selection of Mac debug ports after USB disconnect.
 - Added isolated installation, per-device name discovery/explicit name option, pinned/checksummed firmware provisioning, and persistent host session recovery.
-- Documented pre-flashed customer onboarding, factory recovery, access approvals, hardware, batteries/switches, troubleshooting, compatibility, and acceptance/release workflow.
-- Prototype battery label: JH 702030, 3.7 V, 300 mAh, 1.11 Wh, 25C. Clone charger specification and connector/terminal verification remain required before wiring/charging.
+- Documented pre-flashed customer onboarding, factory recovery, access approvals, hardware, USB power, troubleshooting, compatibility, and acceptance/release workflow.
 
-Evidence: user confirmed physical green/amber/red; BLE acknowledgements for R/Y/G/B/O passed; helper restart restored a persisted red session and reconnected to BLE; seven hardware-free regression tests passed. Repeated MCU resets, physical battery switch cycles, battery endurance/charging, clean-user onboarding, and full Mac reboot are not yet established. This is a tester release, not a commercial safety certification.
+Evidence: user confirmed physical green/amber/red; BLE acknowledgements for R/Y/G/B/O passed; helper restart restored a persisted red session and reconnected to BLE; seven hardware-free regression tests passed. Repeated MCU resets, USB power cycles, clean-user onboarding, and full Mac reboot are not yet established. This is a tester release, not a commercial safety certification.
 
-Follow-up: after the user reported connecting the battery, the running helper connected automatically to TrafficLight-16DE with no Arduino USB device detected. Fresh BLE acknowledgements for R/Y/G/B/O passed and tracking was restored. Physical light confirmation, power-source verification, reconnect timing, and repeated switch cycles remain pending.
+Follow-up: the running helper connected automatically to TrafficLight-16DE with no Arduino USB device detected. Fresh BLE acknowledgements for R/Y/G/B/O passed and tracking was restored. Physical light confirmation, power-source verification, reconnect timing, and repeated switch cycles remain pending.
 
-Battery follow-up: user confirmed physical operation after automatic BLE reconnect. Supplier listing B0DP18ZVL7 claims lithium charging support; charging current and protection remain unverified. Recorded supplier evidence in docs/BATTERY.md.
 
-Reconnect follow-up: user reported green during work; host hooks selected amber but BLE was disconnected. Restarting the helper restored BLE and amber acknowledgement; user confirmed the light changed. Added bounded Bluetooth operation timeouts and a stalled-write regression test. Eight regression tests pass. Repeated battery-cycle recovery remains to be measured.
+Reconnect follow-up: user reported green during work; host hooks selected amber but BLE was disconnected. Restarting the helper restored BLE and amber acknowledgement; user confirmed the light changed. Added bounded Bluetooth operation timeouts and a stalled-write regression test. Eight regression tests pass. Repeated power-cycle recovery remains to be measured.
 
 Display follow-up: added a cancellable 1.5-second completion delay before green and 0.8-second input delay before blinking red; work/error changes remain immediate. Ten regression tests pass, including resumed-work cancellation and suppression of brief input signals. The prior end-of-turn colour sequence was an explicit hardware diagnostic.
 
@@ -84,15 +117,12 @@ Release documentation: consolidated multi-chat priority, completion/input settli
 - Documented production release gates and OpenCode/Windsurf integration candidates without claiming unsupported applications work.
 - Owner selected private implementation plus public setup/docs and a signed Mac installer. Existing public copies cannot be recalled; the current alias helper is not a standalone signed consumer package. Commercial packaging and terms remain release work.
 
-Repository separation verified: TrafficLights_Arduino visibility is private; TrafficLights_Setup was created public with a fresh documentation-only history. Source history preserved and backed up locally. No standalone consumer installer is published.
+At that iteration, implementation and setup documentation were separated. Source visibility changed to public on 2026-10-27. Source history preserved and backed up locally. No standalone consumer installer is published.
 
-## 2026-10-02 — Clawdy local website and battery telemetry
+## 2026-10-02 — Clawdy local website
 
 - Added a Mac-local Clawdy website with CyberDuck alternate, explicit product/installer previews, Bluetooth setup and multi-session explanation.
-- Added read-only loopback battery dashboard, real ADC readings over BLE, bounded voltage history and missing/stale handling.
-- Added calibration-gated battery voltage and approximate percentage; charger status remains unknown until hardware can support it.
-- Preserved existing hook approvals and firmware backups. Verified BLE sensor reports and GPIO acknowledgements; 22 automated tests pass.
-- Public QR hosting, clone calibration and charging validation remain outstanding; see docs/WEBSITE_BATTERY.md.
+- Preserved existing hook approvals and firmware backups. Verified BLE GPIO acknowledgements; 22 automated tests pass.
 
 ## 2026-10-06 — First Clawdy and Bluetooth connection lights
 

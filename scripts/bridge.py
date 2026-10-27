@@ -26,6 +26,10 @@ import threading
 from pathlib import Path
 import serial
 import serial.tools.list_ports
+if __package__:
+    from .dashboard import firmware_status
+else:
+    from dashboard import firmware_status
 
 TCP_HOST = "127.0.0.1"
 TCP_PORT = 8765
@@ -88,7 +92,7 @@ def find_serial_port():
             return p.device
     return None
 
-def hardware_watchdog():
+def hardware_watchdog(on_report=None):
     """
     Background worker that watches for the Arduino USB connection:
     - Auto-detects whenever you plug the Arduino into any port.
@@ -120,6 +124,8 @@ def hardware_watchdog():
                     ser_conn = None
                     hardware_synced = False
                     firmware_report = None
+                    if on_report:
+                        on_report(None)
                 else:
                     # Heartbeat: read any reboot message & periodically re-assert state
                     try:
@@ -132,8 +138,11 @@ def hardware_watchdog():
                                 line, incoming_buffer = incoming_buffer.split(b'\n', 1)
                                 try:
                                     report = json.loads(line)
-                                    if report.get('firmware') == 'traffic-nicenano-v1':
+                                    if report.get('firmware') in ('traffic-nicenano-v1', 'traffic-esp32c3-v1'):
+                                        report = firmware_status(report)
                                         firmware_report = report
+                                        if on_report:
+                                            on_report(report)
                                 except (ValueError, AttributeError):
                                     pass
                             if b"TRAFFIC_LIGHT_READY" in incoming:
@@ -154,6 +163,8 @@ def hardware_watchdog():
                         ser_conn = None
                         hardware_synced = False
                         firmware_report = None
+                        if on_report:
+                            on_report(None)
 
             # 2. If not connected, scan and connect
             if ser_conn is None:
@@ -315,6 +326,7 @@ def run_bridge():
         from ble_transport import BluetoothLink
         def received(report):
             global firmware_report, hardware_synced
+            report = firmware_status(report)
             firmware_report = report
             dashboard.received(report)
             hardware_synced = report is not None
@@ -325,7 +337,7 @@ def run_bridge():
                                        device_id=connection_config.get('device_id'))
         bluetooth_link.start()
     else:
-        watchdog_thread = threading.Thread(target=hardware_watchdog, daemon=True)
+        watchdog_thread = threading.Thread(target=hardware_watchdog, args=(dashboard.received,), daemon=True)
         watchdog_thread.start()
 
     print(f"✅ Bridge TCP server listening on {TCP_HOST}:{TCP_PORT}...\n", flush=True)

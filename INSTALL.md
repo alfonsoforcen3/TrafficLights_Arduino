@@ -1,5 +1,10 @@
 # Install the native desktop Bluetooth companion
 
+**Bought a pre-flashed Clawdy?** Start with [AI-assisted customer setup](docs/CUSTOMER_AGENT.md)
+and `python3 install.py --onboard` (`py -3` on Windows). Power the toy from USB;
+it can connect over Bluetooth without a USB data cable to the laptop. The factory
+provisioning steps below are not part of normal buyer setup.
+
 For OS-specific install, hook activation, update and removal steps, start with
 [Install and activate: Mac / Windows / Linux status](docs/INSTALL_ACTIVATE.md).
 Linux/WSL activation is unsupported; the linked guide includes development tests.
@@ -38,7 +43,7 @@ Confirm the hardware profile and LED wiring first. Enter the UF2 bootloader by d
 python3 scripts/flash_nicenano.py --boot-drive /Volumes/NICENANO
 ```
 
-This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, battery.py, connection_display.py, pwm_led.py, provider_icons.py, oled_display.py, session_count.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
+This backs up existing firmware, downloads the official nice_nano CircuitPython 8.1.0 UF2, validates its SHA-256, flashes it, waits for CIRCUITPY, and copies boot.py, ble_link.py, connection_display.py, pwm_led.py, provider_icons.py, oled_display.py, session_count.py, and code.py. Version 8.1.0 is pinned because this tested board has UF2 bootloader 0.6.0; it avoids a bootloader migration. This is a compatibility choice, not a claim that 8.1.0 is the latest release.
 
 If CIRCUITPY already runs the correct profile, update its files without downloading/reflashing:
 
@@ -50,32 +55,33 @@ python3 scripts/flash_nicenano.py
 
 ## 4. Install the host bridge and hooks
 
-For the private customer terminal onboarding candidate, use
+For the customer terminal onboarding flow, use
 `python3 install.py --onboard`. It can discover a powered, pre-flashed toy without
 USB data, explicitly select it and configure its supported identity/name and
 provider hooks. See [customer setup](docs/CUSTOMER_SETUP.md). Existing firmware
 without persistent rename support needs `--keep-name` or a factory update.
 The commands below remain available for maintainers and exact-label installation.
 
-For a shipped unit, read the name on its label and run:
+For a pre-flashed shipped unit, use the guided buyer flow above. For an already
+identified maintainer unit, preview the detected supported apps and approve the
+specific providers before using an exact-label command:
 
 ```bash
-python3 install.py --ble-name TrafficLight-ABCD
+python3 scripts/provider_setup.py --detect
+python3 install.py --ble-name TrafficLight-ABCD --providers codex
 ```
 
-Replace the example with the actual label. For a developer unit without a label, keep exactly one board connected by USB for first discovery:
+Replace the name with the unit's actual label and `codex` with the approved
+providers, or use `--no-hooks` for a service-only update. No-argument installation
+opens guided onboarding; it never picks a USB board or learns a name silently.
+The guided flow reads BLE firmware identity and asks for visible identification.
+Optional explicit USB metadata/Q checking can cross-check the selected unit, but
+normal runtime always uses BLE.
 
-```bash
-python3 install.py
-```
-
-The installer creates an isolated environment under ~/.local/share/trafficlights/venv. It probes the board's `Q` response to learn its own TrafficLight-XXXX name; it never assumes the developer's board name. It installs a locally built Traffic Light Bridge app, a LaunchAgent that runs at **user login**, and eight owned hooks in ~/.codex/hooks.json, preserving unrelated hooks.
-
-For an already provisioned board powered elsewhere, supply its exact advertised name:
-
-```bash
-python3 install.py --ble-name TrafficLight-ABCD
-```
+The installer creates an isolated environment under
+~/.local/share/trafficlights/venv and installs the native login helper plus only
+selected provider hooks, preserving unrelated settings. Review normal Bluetooth
+access and hook trust before accepting the installation.
 
 For the original wired profile use `--transport serial`. Do not use an Arduino Uno sketch as nRF52840 firmware.
 
@@ -97,7 +103,7 @@ python3 scripts/verify_hardware.py
 
 The status must show BLE connected, a ble:// peer, and a firmware response with transport=ble and the correct GPIO values. The verification command briefly overrides the physical light for testing, then restores the tracked chat state. Have the human confirm all LEDs visibly illuminate. Test a real prompt, completion and approval request as well; synthetic signals alone do not prove hook dispatch.
 
-Move power to a wall USB supply or an approved battery only after the BLE test. Use [battery instructions](docs/BATTERY.md), then perform [power-cycle acceptance](docs/TESTING.md).
+Use the unit’s supplied USB power connection, then perform [USB power-cycle acceptance](docs/TESTING.md).
 
 ## 7. Updates and removal
 
@@ -111,24 +117,24 @@ Run the full installer if hooks changed; review them again. Roll back through Gi
 
 ## Provider discovery
 
-The default installer detects supported local tools and installs their adapters. Preview with `python3 scripts/provider_setup.py --detect`; restrict with `python3 install.py --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).
+The guided installer inventories supported local tools and asks which adapters to configure. Preview with `python3 scripts/provider_setup.py --detect`; choose explicitly with `python3 install.py --onboard --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).
 
 ## Source access and consumer packaging
 
-This is the private maintainer/invited-tester source workflow. Cloning requires authorized GitHub access. Public customer documentation is https://github.com/alfonsoforcen3/TrafficLights_Setup. A standalone signed/notarized consumer installer has not been released yet; public documentation alone cannot install this implementation.
+This source repository is public. Customers can ask a terminal-capable local AI to follow docs/CUSTOMER_AGENT.md and configure a pre-flashed unit. A standalone signed consumer installer and clean-customer acceptance are still pending; public access is not release qualification.
 
 ## Move first clawdy to another Mac
 
 This unit is already flashed, with green on P0.09, amber on P1.11, red on P1.13 and BLE name `first clawdy`. Do not reflash or recreate its board profile when installing on another laptop. It needs power and Bluetooth proximity, not USB data.
 
-Release it from the old Mac first, using `python3 manage_hooks.py disable` in this checkout. This disables the old Mac's traffic-light integration. Then, on the new Mac, clone this private repository with an authorized GitHub account and run:
+Release it from the old Mac first, using `python3 manage_hooks.py disable` in this checkout. This disables the old Mac's traffic-light integration. Then, on the new Mac, clone this public repository and run:
 
 ```bash
-python3 install.py --ble-name "first clawdy"
+python3 install.py --ble-name "first clawdy" --providers codex
 python3 manage_hooks.py status
 python3 scripts/verify_hardware.py
 ```
 
-Allow Traffic Light Bridge Bluetooth access in macOS and review detected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop. Battery percentage and charging are still unverified.
+Replace `codex` with the providers approved after detection. Allow Traffic Light Bridge Bluetooth access in macOS and review the selected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop.
 
 For release verification, agent handoff requirements, and restoration after disabling hooks, follow [the laptop handoff procedure](docs/LAPTOP_HANDOFF.md).

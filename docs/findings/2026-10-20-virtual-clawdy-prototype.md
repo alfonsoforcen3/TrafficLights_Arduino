@@ -63,8 +63,7 @@ bounded nonblocking output. The initial full-vector redraw loop cost about
 Final integrated **16.27-second** demo sample, using process CPU-time deltas:
 host 0.37%, collector 0.06%, renderer 0.25% of one core; combined peak RSS
 **86.6 MiB**. No child restarts occurred. These are short, loaded-machine
-observations including state changes, not a five-minute benchmark, battery
-measurement, 24/72-hour soak or guaranteed resource ceiling.
+observations including state changes, not a five-minute benchmark, 24/72-hour soak or guaranteed resource ceiling.
 
 Building on cloud-backed Desktop repeatedly reintroduced Finder metadata and
 failed signing. Build artifacts now live under
@@ -87,7 +86,7 @@ distribution, login registration, transactional updater or customer installer
 is shipped. The legacy observer endpoint is unauthenticated; the narrow inherited
 pipe boundary does not secure that old endpoint. No live hooks/services were
 changed and no prototype source was committed, pushed or published. Test apps
-were stopped after verification. Keep this a private development prototype.
+were stopped after verification. This remains a development prototype; the repository was made public by the owner on 27 October 2026.
 
 ## Subsequent owner trial and expanded acceptance
 

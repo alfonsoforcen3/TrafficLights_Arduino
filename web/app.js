@@ -27,65 +27,21 @@ document.querySelectorAll("[data-toy]").forEach((button) =>
   }),
 );
 function render(data) {
-  const valid = data.connected && !data.stale;
-  const battery = valid ? data.battery : null;
-  q("#connection").textContent = valid
-    ? "Board connected over Bluetooth"
-    : "Waiting for your board";
+  const valid = data.connected === true && data.stale === false;
+  q("#connection").textContent = valid ? "Current board report received" : "Waiting for your Clawdy";
   q("#connection-dot").classList.toggle("online", valid);
-  const percent =
-    battery && battery.measurement_valid ? battery.estimated_percent : null;
-  q("#percent").textContent = Number.isFinite(percent) ? percent + "%" : "—";
-  q("#meter-fill").style.width = Number.isFinite(percent)
-    ? Math.max(0, Math.min(100, percent)) + "%"
-    : "0%";
-  q("#voltage").textContent =
-    battery && Number.isFinite(battery.voltage)
-      ? battery.voltage.toFixed(3) + " V"
-      : "Unverified";
-  q("#sensor").textContent =
-    battery && Number.isFinite(battery.sensor_voltage)
-      ? battery.sensor_voltage.toFixed(4) + " V"
-      : "—";
-  q("#sample-age").textContent = valid
-    ? "UPDATED " + data.age_seconds + "s AGO"
-    : "NO CURRENT READING";
-  q("#battery-note").textContent = !valid
-    ? "Power on your companion and allow Bluetooth access. Old readings are not shown as live."
-    : battery && battery.calibrated
-      ? "Estimated percentage from a verified voltage conversion. Charging can inflate the estimate."
-      : "Live sensor reading. Battery voltage and percentage need a verified divider calibration for this board.";
-  const samples = valid
-    ? (data.history || []).filter((sample) =>
-        Number.isFinite(sample.sensor_voltage),
-      )
-    : [];
-  let trend = "Awaiting samples";
-  if (samples.length >= 2) {
-    const delta = samples.at(-1).sensor_voltage - samples[0].sensor_voltage;
-    trend =
-      Math.abs(delta) < 0.005
-        ? "Steady"
-        : delta > 0
-          ? "Voltage rising"
-          : "Voltage falling";
-    const min = Math.min(...samples.map((s) => s.sensor_voltage)) - 0.005;
-    const max = Math.max(...samples.map((s) => s.sensor_voltage)) + 0.005;
-    q("#chart-line").setAttribute(
-      "d",
-      samples
-        .map(
-          (s, i) =>
-            `${i ? "L" : "M"}${(i / (samples.length - 1)) * 600},${90 - ((s.sensor_voltage - min) / (max - min)) * 80}`,
-        )
-        .join(" "),
-    );
-  } else q("#chart-line").setAttribute("d", "");
-  q("#trend").textContent = trend;
+  const modes = { G: "Ready", Y: "Working", B: "Your attention", R: "Error", O: "Lights off" };
+  q("#light-state").textContent = valid ? (modes[data.mode] || "Unknown") : "Waiting";
+  q("#transport").textContent = valid ? ({ ble: "Bluetooth", usb: "USB", serial: "USB" }[data.transport] || "Unknown") : "—";
+  q("#firmware").textContent = valid && typeof data.firmware === "string" ? data.firmware.slice(0, 80) : "—";
+  q("#display-phase").textContent = valid && typeof data.display_phase === "string" ? data.display_phase.slice(0, 40) : "—";
+  const age = data.age_seconds;
+  q("#sample-age").textContent = valid && Number.isFinite(age) && age >= 0 ? "UPDATED " + age + "s AGO" : "NO CURRENT REPORT";
+  q("#status-note").textContent = valid ? "This is your board’s reported light state. Provider and visible-light checks remain separate." : "Check USB power, range and Bluetooth access. A stale report is never shown as live.";
 }
 async function refresh() {
   try {
-    const response = await fetch("/api/battery", {
+    const response = await fetch("/api/status", {
       cache: "no-store",
       signal: AbortSignal.timeout(4000),
     });
@@ -99,8 +55,8 @@ if (local) {
   refresh();
   setInterval(refresh, 5000);
 } else {
-  q("#connection").textContent = "Live battery data lives on your Mac";
-  q("#battery-note").textContent =
-    "Open the local Mac dashboard to see your board’s real readings. This public page contains no simulated battery values.";
+  q("#connection").textContent = "Live device status stays on your laptop";
+  q("#status-note").textContent =
+    "Open the local dashboard for your Clawdy’s actual connection and light status. This static page does not connect to your laptop.";
   q("#local-link").hidden = false;
 }

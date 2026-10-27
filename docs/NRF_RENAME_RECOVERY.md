@@ -1,6 +1,6 @@
 # nRF persistent rename: interrupted-write recovery
 
-This private candidate uses one checked 40-byte record at `microcontroller.nvm`
+This development candidate uses one checked 40-byte record at `microcontroller.nvm`
 offsets 0–39. It is not an atomic transaction. No physical power-interruption or
 recovery test has been completed on the pinned CircuitPython/board profile.
 

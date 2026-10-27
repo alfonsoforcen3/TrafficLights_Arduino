@@ -94,12 +94,25 @@ class SetupTests(unittest.TestCase):
                 download.assert_not_called()
                 self.assertFalse((root / 'traffic.uf2').exists())
 
-    def test_discovery_refuses_ambiguous_usb_devices(self):
+    def test_buyer_setup_never_automatically_discovers_usb_devices(self):
         import install
+        from scripts import onboard
         from types import SimpleNamespace
-        with patch('serial.tools.list_ports.comports', return_value=[SimpleNamespace(vid=0x239A,pid=0x80B4)] * 2):
-            with self.assertRaises(RuntimeError):
-                install.discover_name()
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(install, 'RUNTIME', Path(directory)), \
+                patch('serial.tools.list_ports.comports', return_value=[SimpleNamespace(vid=0x239A, pid=0x80B4)] * 2) as ports, \
+                patch('serial.Serial', side_effect=AssertionError('Unexpected serial open')) as serial_open, \
+                patch.object(install.subprocess, 'run', side_effect=AssertionError('Unexpected installation')) as run, \
+                patch.object(onboard, 'run_cli', return_value=2) as wizard:
+            with patch.object(sys, 'argv', ['install.py']):
+                self.assertEqual(install.main(), 2)
+            wizard.assert_called_once_with([])
+            with patch.object(sys, 'argv', ['install.py', '--transport', 'ble', '--no-hooks']):
+                with self.assertRaisesRegex(RuntimeError, 'No verified BLE name'):
+                    install.main()
+            ports.assert_not_called()
+            serial_open.assert_not_called()
+            run.assert_not_called()
 
 class BridgeTests(unittest.TestCase):
     def test_observer_output_does_not_forward_prompt_or_approve_tools(self):

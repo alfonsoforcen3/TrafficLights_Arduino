@@ -47,6 +47,7 @@ class Protocol {
         return Event::None;
       }
       if (pending_ != '!' && (byte < '0' || byte > '9' || used_ >= 4)) invalid_ = true;
+      if (byte == 0) invalid_ = true;  // Never parse a truncated C string as a complete identity frame.
       if (used_ >= 192) invalid_ = true;
       if (!invalid_) frame[used_++] = char(byte);
       return Event::None;
@@ -55,7 +56,7 @@ class Protocol {
       pending_ = char(byte); used_ = 0; invalid_ = false; return Event::None;
     }
     char upper = byte >= 'a' && byte <= 'z' ? char(byte - 32) : char(byte);
-    if (upper && std::strchr("GYRBOQVTX", upper)) {
+    if (upper && std::strchr("GYRBOQTX", upper)) {
       command = upper;
       return Event::Command;
     }

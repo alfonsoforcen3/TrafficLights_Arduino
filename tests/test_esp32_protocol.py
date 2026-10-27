@@ -19,7 +19,14 @@ class ESP32ProtocolTests(unittest.TestCase):
         cls.binary = Path(cls.temporary.name) / 'protocol_test'
         result = subprocess.run([cls.compiler, '-std=c++11', '-Wall', '-Wextra', '-Werror',
                                  str(SOURCE / 'protocol_test.cpp'), '-o', str(cls.binary)],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, timeout=30)
+        if result.returncode:
+            cls.temporary.cleanup()
+            raise AssertionError(result.stderr)
+        cls.runtime_binary = Path(cls.temporary.name) / 'runtime_test'
+        result = subprocess.run([cls.compiler, '-std=c++11', '-Wall', '-Wextra', '-Werror',
+                                 str(SOURCE / 'runtime_test.cpp'), '-o', str(cls.runtime_binary)],
+                                capture_output=True, text=True, timeout=30)
         if result.returncode:
             cls.temporary.cleanup()
             raise AssertionError(result.stderr)
@@ -29,7 +36,7 @@ class ESP32ProtocolTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def scenario(self, name):
-        result = subprocess.run([str(self.binary), name], capture_output=True, text=True)
+        result = subprocess.run([str(self.binary), name], capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_fragmented_rename_never_becomes_colour_commands(self):
@@ -52,6 +59,14 @@ class ESP32ProtocolTests(unittest.TestCase):
 
     def test_name_utf8_byte_limits_controls_and_invalid_encoding(self):
         self.scenario('utf8')
+
+    def test_shipping_runtime_policies_without_radio_or_hardware(self):
+        for name in ('usb_diagnostics', 'connect_resume', 'clock_wrap', 'peer_epochs',
+                     'transmit_bounds', 'advertisement_ack_drain', 'output_stall_recovery',
+                     'persistent_name', 'immutable_identity'):
+            with self.subTest(scenario=name):
+                result = subprocess.run([str(self.runtime_binary), name], capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def config(self, *definitions, source=''):
         return subprocess.run([self.compiler, '-std=c++11', '-x', 'c++', '-fsyntax-only',
