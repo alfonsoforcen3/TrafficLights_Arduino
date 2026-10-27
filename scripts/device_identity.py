@@ -1,4 +1,4 @@
-"""Explicit BLE discovery/identity transactions; no hooks, provisioning, or pairing.
+"""Explicit BLE enrollment and optional selected USB identity; no provisioning.
 
 A UID check prevents accidental rename of another selected board. Nordic UART
 is not an authenticated ownership protocol: proximity is not proof of ownership.
@@ -8,6 +8,10 @@ import asyncio
 import json
 import math
 import re
+from pathlib import Path
+import subprocess
+import sys
+import time
 import unicodedata
 
 RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'
@@ -15,6 +19,92 @@ TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'
 SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
 SUPPORTED_FIRMWARE = ('traffic-nicenano-v1', 'traffic-esp32c3-v1')
 SCAN_CLEANUP_TIMEOUT = 2.0
+# USB descriptors identify candidate interfaces, never an exact PCB or firmware.
+USB_IDENTITY_INTERFACES = {(0x303A, 0x1001): 'Espressif USB Serial/JTAG candidate'}
+
+
+def usb_inventory():
+    """Explicit metadata inventory only: never open a port or infer a board model."""
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        return {'available': False, 'ports': [], 'reason': 'pyserial is not installed; no packages were downloaded'}
+    ports = []
+    for port in list_ports.comports():
+        descriptor = (getattr(port, 'vid', None), getattr(port, 'pid', None))
+        ports.append({'port': port.device, 'vid': descriptor[0], 'pid': descriptor[1],
+                      'serial_number': getattr(port, 'serial_number', None),
+                      'description': getattr(port, 'description', None),
+                      'identity_query_supported': descriptor in USB_IDENTITY_INTERFACES,
+                      'firmware_verified': False, 'board_model_verified': False})
+    return {'available': True, 'ports': sorted(ports, key=lambda item: item['port']), 'reason': None}
+
+
+def _inspect_usb_device(port, serial_number, timeout):
+    """Child-only Q transaction after rechecking the selected descriptor/serial."""
+    timeout = _validated_timeout(timeout)
+    if timeout > 12:
+        raise ValueError('USB identity timeout must be at most 12 seconds')
+    candidates = [entry for entry in usb_inventory()['ports']
+                  if entry['port'] == port and entry['serial_number'] == serial_number
+                  and entry['identity_query_supported']]
+    if len(candidates) != 1 or not isinstance(serial_number, str) or not serial_number.strip():
+        raise ValueError('USB identity requires one exact allowlisted port and its nonempty USB serial number; no port opened')
+    import serial
+    reports = _ReportBuffer()
+    device = serial.Serial(port=None, baudrate=115200, timeout=min(.1, timeout), write_timeout=min(1., timeout))
+    # Do not intentionally reset the chip into a bootloader when querying Q.
+    device.dtr = False
+    device.rts = False
+    device.port = port
+    deadline = time.monotonic() + timeout
+    failed = False
+    try:
+        device.open()
+        device.write(b'Q')
+        while time.monotonic() < deadline:
+            for report in reports.feed(device.read(4096)):
+                if _valid_usb_report(report):
+                    return report
+        raise TimeoutError('Selected USB port did not acknowledge supported Clawdy identity; no BLE fallback attempted')
+    except BaseException:
+        failed = True
+        raise
+    finally:
+        try:
+            device.close()
+        except Exception:
+            if not failed:
+                raise
+
+
+def _valid_usb_report(report):
+    return (isinstance(report, dict) and report.get('firmware') == 'traffic-esp32c3-v1'
+            and report.get('transport') == 'usb' and report.get('hardware_family') == 'esp32c3'
+            and isinstance(report.get('device_id'), str) and re.fullmatch(r'[0-9A-F]{12}', report['device_id']) is not None
+            and type(report.get('identity_protocol')) is int and report['identity_protocol'] == 1
+            and isinstance(report.get('rename_supported'), bool)
+            and isinstance(report.get('ble_name'), str) and 1 <= len(report['ble_name'].encode('utf-8')) <= 29
+            and not any(ord(c) < 32 or ord(c) == 127 for c in report['ble_name']))
+
+
+def inspect_usb_device(port, serial_number, timeout=5.):
+    """Optional, explicitly selected USB Q; subprocess bounds open/read/cleanup."""
+    timeout = _validated_timeout(timeout)
+    if timeout > 12:
+        raise ValueError('USB identity timeout must be at most 12 seconds')
+    if not all(isinstance(value, str) and value.strip() and not any(ord(c) < 32 or ord(c) == 127 for c in value)
+               for value in (port, serial_number)):
+        raise ValueError('Exact USB port and USB serial number are required')
+    result = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--usb-identity', port,
+                             serial_number, str(timeout)], capture_output=True, text=True,
+                            timeout=timeout + 2, check=False)
+    if result.returncode:
+        raise RuntimeError('Selected USB identity query failed: ' + result.stderr.strip()[:500])
+    report = json.loads(result.stdout)
+    if not _valid_usb_report(report):
+        raise ValueError('Malformed USB identity reply')
+    return report
 
 
 def _validated_timeout(timeout):
@@ -248,3 +338,15 @@ async def _identify_sequence(address, device_id, restore, timeout):
         if mutated:
             await command(restore)
     await _with_bounded_client(address, run, timeout, cleanup)
+
+
+if __name__ == '__main__':
+    # This private child entry point is used only by inspect_usb_device. Its
+    # parent imposes a hard process deadline including serial open and close.
+    try:
+        if len(sys.argv) != 5 or sys.argv[1] != '--usb-identity':
+            raise ValueError('Use the guided onboard command for USB identification')
+        print(json.dumps(_inspect_usb_device(sys.argv[2], sys.argv[3], float(sys.argv[4]))))
+    except (ValueError, RuntimeError, OSError, TimeoutError) as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(1)

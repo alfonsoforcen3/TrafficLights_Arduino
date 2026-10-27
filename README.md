@@ -31,8 +31,10 @@ Tell your **local AI assistant with terminal access**:
 
 > I bought a new Clawdy and it is powered on near this computer. Set it up for me using https://github.com/alfonsoforcen3/TrafficLights_Arduino. Read AGENTS.md and docs/CUSTOMER_AGENT.md, help me select and identify my toy, give it a nickname, configure my installed supported AI apps, and verify the lights. Guide me through normal Bluetooth and app approvals.
 
-Once the assistant has this repository, “I have a new Clawdy connected to this
-machine; set it up” is enough to start the same guided workflow. Ordinary browser
+Pointing your local AI at this repository starts the buyer setup workflow by
+default. “I have a new Clawdy connected to this machine; set it up” is enough
+once it has the repository. It first inventories your laptop and asks you to
+confirm your toy, nickname and supported AI apps before connecting or changing hooks. Ordinary browser
 chat cannot run local commands or configure Bluetooth by itself.
 
 The assistant clones this public source into a stable local folder, checks the
@@ -45,7 +47,9 @@ python3 install.py --onboard
 On native Windows, use `py -3 install.py --onboard`. macOS has physical prototype
 evidence; native Windows customer acceptance is still pending. Linux/WSL is
 unsupported. The AI must let you select and visibly identify the correct toy,
-review provider hook permissions, and confirm the LEDs. It must report unfinished
+review the detected supported AI applications and hook permissions, and confirm the LEDs.
+Setup uses Bluetooth Low Energy for the running companion; a USB data connection
+can identify the unit, but it never silently becomes the runtime transport. It must report unfinished
 checks instead of calling an installation verified just because a process runs.
 
 New factory firmware supports a name derived from your laptop, chosen nickname
@@ -83,10 +87,10 @@ Boards should ship wired, flashed, tested, and labelled with their Bluetooth nam
 ```bash
 git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
 cd TrafficLights_Arduino
-python3 install.py --ble-name TrafficLight-ABCD
+python3 install.py --ble-name TrafficLight-ABCD --providers codex
 ```
 
-Replace `TrafficLight-ABCD` with **your unit's label**. The installer creates an isolated Python environment, installs the Bluetooth login helper, detects supported local AI tools, and preserves unrelated hooks/settings. Approve Bluetooth access for **Traffic Light Bridge** and review each provider's hooks/workspace trust. Then check:
+Replace `TrafficLight-ABCD` with **your unit's label**. Review the supported apps first and replace `codex` with the providers you approve, or use `--no-hooks` for a service-only update. The installer creates an isolated Python environment, installs the Bluetooth login helper and preserves unrelated hooks/settings. Approve Bluetooth access for **Traffic Light Bridge** and review each provider's hooks/workspace trust. Then check:
 
 ```bash
 python3 manage_hooks.py status
@@ -109,7 +113,7 @@ This integrates with **applications**, regardless of their underlying model. Ord
 
 ```bash
 python3 scripts/provider_setup.py --detect               # Preview detected applications
-python3 install.py --providers codex claude               # Restrict hook installation
+python3 install.py --onboard --providers codex claude     # Guided setup, selected hooks
 python3 install.py --no-hooks                             # Update the helper, preserve hooks
 python3 manage_hooks.py status                            # Sessions, connection and GPIO report
 python3 manage_hooks.py disable                           # Remove owned hooks and login service

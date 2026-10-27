@@ -31,12 +31,15 @@ class CustomerIntentTests(unittest.TestCase):
             guard = patch.object(onboard.device_identity, name,
                                  new=AsyncMock(side_effect=AssertionError('Unexpected BLE: ' + name)))
             guard.start(); self.addCleanup(guard.stop)
+        for name in ('usb_inventory', 'inspect_usb_device'):
+            guard = patch.object(onboard.device_identity, name, side_effect=AssertionError('Unexpected USB: ' + name))
+            guard.start(); self.addCleanup(guard.stop)
 
     def test_fresh_no_arguments_enters_guided_bluetooth_not_usb(self):
         with patch('sys.argv', ['install.py']), patch.object(onboard, 'run_cli', return_value=2) as wizard, \
-                patch.object(install, 'discover_name') as usb, patch.object(install.subprocess, 'run') as run:
+                patch.object(install.subprocess, 'run') as run:
             self.assertEqual(install.main(), 2)
-        wizard.assert_called_once_with([]); usb.assert_not_called(); run.assert_not_called()
+        wizard.assert_called_once_with([]); run.assert_not_called()
 
     def test_saved_connection_and_explicit_maintenance_keep_their_paths(self):
         self.runtime.mkdir()
@@ -44,7 +47,7 @@ class CustomerIntentTests(unittest.TestCase):
         for transport in ('ble', 'serial'):
             path.write_text(json.dumps({'transport': transport, 'ble_name': 'Exact toy'}))
             before = path.read_bytes()
-            self.assertFalse(install.onboarding_requested([]))
+            self.assertTrue(install.onboarding_requested([]))
             self.assertEqual(path.read_bytes(), before)
         for argv in (['--help'], ['--no-hooks'], ['--ble-name', 'Exact toy'], ['--transport', 'serial']):
             self.assertFalse(install.onboarding_requested(argv))
@@ -57,15 +60,80 @@ class CustomerIntentTests(unittest.TestCase):
                 install.onboarding_requested([])
             self.assertEqual(path.read_text(), content)
 
-    def test_existing_serial_update_does_not_fall_back_to_usb_ble_discovery(self):
+    def test_serial_maintenance_requires_explicit_transport_and_never_discovers_usb(self):
         self.runtime.mkdir(); (self.runtime/'connection.json').write_text('{"transport":"serial","ble_name":null}')
         from scripts import codex_setup, platform_support
-        with patch('sys.argv', ['install.py', '--no-hooks']), patch.object(install.sys, 'prefix', str(self.runtime/'venv')), \
+        with patch('sys.argv', ['install.py', '--no-hooks']), patch.object(install.subprocess, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'explicitly request --transport serial'):
+                install.main()
+        run.assert_not_called()
+        with patch('sys.argv', ['install.py', '--no-hooks', '--transport', 'serial']), patch.object(install.sys, 'prefix', str(self.runtime/'venv')), \
                 patch.object(platform_support, 'require_platform', return_value='Darwin'), \
                 patch.object(provider_setup, 'detect', return_value={}), patch.object(codex_setup, 'install_service') as service, \
-                patch.object(install, 'discover_name') as usb, contextlib.redirect_stdout(io.StringIO()):
+                contextlib.redirect_stdout(io.StringIO()):
             install.main()
-        service.assert_called_once_with('serial', None, device_id=None); usb.assert_not_called()
+        service.assert_called_once_with('serial', None, device_id=None)
+
+    def test_buyer_installer_is_explicit_ble_even_with_saved_serial_profile(self):
+        self.runtime.mkdir(); (self.runtime/'connection.json').write_text('{"transport":"serial"}')
+        from scripts import codex_setup, platform_support
+        command = onboard.installer_command('Selected toy', [], '0123456789ABCDEF')
+        with patch('sys.argv', command[1:]), patch.object(install.sys, 'prefix', str(self.runtime/'venv')), \
+                patch.object(platform_support, 'require_platform', return_value='Darwin'), \
+                patch.object(codex_setup, 'install_service') as service, contextlib.redirect_stdout(io.StringIO()):
+            install.main()
+        service.assert_called_once_with('ble', 'Selected toy', device_id='0123456789ABCDEF')
+
+    def test_noninteractive_provider_choice_is_required_before_dependencies(self):
+        with patch.object(onboard, 'ensure_dependencies') as deps:
+            with self.assertRaisesRegex(ValueError, 'explicit --providers or --no-hooks'):
+                onboard.main(['--yes', '--ble-name', 'Selected', '--keep-name'])
+        deps.assert_not_called()
+
+    def test_existing_profile_requires_replacement_confirmation_before_dependencies(self):
+        self.runtime.mkdir(); path = self.runtime/'connection.json'
+        path.write_text('{"transport":"ble","ble_name":"Previous toy","device_id":"01234567"}')
+        before = path.read_bytes()
+        with patch.object(onboard, 'require_platform', return_value='Darwin'), \
+                patch.object(onboard, 'ensure_dependencies') as deps, contextlib.redirect_stdout(io.StringIO()) as output:
+            with self.assertRaisesRegex(RuntimeError, '--replace-existing'):
+                onboard.main(['--yes', '--ble-name', 'Next toy', '--keep-name', '--no-hooks'])
+        self.assertIn('Previous toy', output.getvalue()); self.assertIn('01234567', output.getvalue())
+        deps.assert_not_called(); self.assertEqual(path.read_bytes(), before)
+
+    def test_existing_profile_change_after_confirmation_stops_before_any_mutation(self):
+        args = onboard.parser().parse_args(['--yes', '--ble-name', 'Selected', '--keep-name', '--no-hooks'])
+        args.existing_connection = None
+        self.runtime.mkdir(); (self.runtime/'connection.json').write_text('{"transport":"ble","ble_name":"Changed"}')
+        with patch.object(onboard.subprocess, 'run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'changed during setup'):
+                onboard.complete_setup(args, onboard.WizardUI(), {'address': 'A'}, {'ble_name': 'Selected'}, [], None)
+        run.assert_not_called(); self.assertFalse((self.runtime/'onboarding').exists())
+
+    def test_usb_metadata_is_opt_in_and_never_bootstraps_or_opens_ports(self):
+        metadata = {'available': True, 'ports': [{'port': 'MOCK', 'board_model_verified': False}], 'reason': None}
+        with patch.object(onboard.device_identity, 'usb_inventory', return_value=metadata), \
+                patch.object(onboard, 'ensure_dependencies') as deps, contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(onboard.main(['--list-usb', '--json']), 0)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload['mode'], 'usb_inventory'); self.assertFalse(payload['ports_opened'])
+        self.assertFalse(payload['bluetooth_scanned']); self.assertFalse(payload['mutations'])
+        self.assertEqual(payload['runtime_transport'], 'ble'); deps.assert_not_called()
+
+    def test_usb_ble_mismatch_stops_before_identification_rename_or_install(self):
+        usb = {'device_id': 'AABBCCDDEEFF', 'hardware_family': 'esp32c3', 'ble_name': 'Selected'}
+        ble = dict(usb, device_id='112233445566')
+        with patch.object(onboard, 'require_platform', return_value='Darwin'), \
+                patch.object(onboard, 'ensure_dependencies', return_value=False), \
+                patch.object(onboard.device_identity, 'discover_candidates', new=AsyncMock(return_value=[{'name': 'Selected', 'address': 'A'}])), \
+                patch.object(onboard.device_identity, 'inspect_usb_device', return_value=usb), \
+                patch.object(onboard.device_identity, 'inspect_device', new=AsyncMock(return_value=ble)), \
+                patch.object(onboard.subprocess, 'run') as run, contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaisesRegex(RuntimeError, 'USB and BLE identities/names do not match'):
+                onboard.main(['--yes', '--ble-name', 'Selected', '--keep-name', '--no-hooks',
+                              '--usb-port', 'MOCK', '--usb-serial', 'MOCK-SERIAL', '--identified-device'])
+        onboard.device_identity.identify_device.assert_not_awaited()
+        onboard.device_identity.rename_device.assert_not_awaited(); run.assert_not_called()
 
     def test_preflight_json_is_offline_and_preserves_disabled_provider_policy(self):
         with patch.object(provider_setup, 'detect', return_value={'codex': ['fixture/codex']}), \
@@ -79,7 +147,25 @@ class CustomerIntentTests(unittest.TestCase):
         self.assertFalse(report['mutations']); self.assertFalse(report['bluetooth_scanned'])
         self.assertFalse(report['customer_ready'])
         self.assertEqual(report['providers']['codex']['hook_policy'], 'blocked')
+        self.assertFalse(report['providers']['codex']['selected'])
+        self.assertTrue(report['provider_selection_required'])
+        self.assertEqual(report['runtime_transport'], 'ble')
         deps.assert_not_called(); run.assert_not_called(); self.assertFalse(self.runtime.exists())
+
+    def test_provider_inventory_never_treats_detection_as_hook_consent(self):
+        with patch('sys.argv', ['provider_setup.py', '--detect', '--json']), \
+                patch.object(provider_setup, 'detect', return_value={'codex': ['mock executable']}), \
+                patch.object(provider_setup, 'configure') as configure, contextlib.redirect_stdout(io.StringIO()) as output:
+            provider_setup.main()
+        report = json.loads(output.getvalue())
+        self.assertIn('codex', report['detected']); self.assertFalse(report['mutations'])
+        self.assertIn('Claude Desktop chats', report['unsupported']); configure.assert_not_called()
+        with patch('sys.argv', ['provider_setup.py']), patch.object(provider_setup, 'detect', return_value={'codex': ['mock']}), \
+                patch.object(provider_setup, 'configure') as configure, contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                provider_setup.main()
+        configure.assert_not_called()
 
     def test_discovery_json_does_not_connect_identify_rename_or_install(self):
         devices = [{'name': 'Clawdy One', 'address': 'MOCK-A', 'rssi': -40},

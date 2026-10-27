@@ -11,7 +11,7 @@ Turn off or disable the companion on the old laptop before switching laptops. En
 In PowerShell, from the repository root:
 
 ```powershell
-py -3 install.py --ble-name "first clawdy"
+py -3 install.py --ble-name "first clawdy" --providers claude gemini
 py -3 manage_hooks.py status
 py -3 scripts/verify_hardware.py
 ```
@@ -34,4 +34,6 @@ Local macOS hardware-free tests cover regression behavior, OS paths, quoting and
 
 ## Pull this firmware/hook iteration
 
-First Clawdy was updated and visibly verified on Mac on 2026-10-07. Windows does not need to write CIRCUITPY for this handoff. Use `git pull --ff-only`, preview with `py -3 scripts/provider_setup.py --detect`, then run the full `py -3 install.py --ble-name "first clawdy"` because Gemini hook commands changed. Review trust and restart provider sessions. See [current findings](findings/2026-10-07-mac-integration.md). Do not use `--no-hooks` to apply changed hook commands. If corporate policy blocks Git/PyPI/startup, request normal IT approval; do not disable security controls. Provide sanitized findings or a patch to the owner if push is blocked.
+First Clawdy was updated and visibly verified on Mac on 2026-10-07. Windows does not need to write CIRCUITPY for this handoff. Use `git pull --ff-only`, preview with `py -3 scripts/provider_setup.py --detect`, then run the full `py -3 install.py --ble-name "first clawdy" --providers claude gemini` because Gemini hook commands changed. Review trust and restart provider sessions. See [current findings](findings/2026-10-07-mac-integration.md). Do not use `--no-hooks` to apply changed hook commands. If corporate policy blocks Git/PyPI/startup, request normal IT approval; do not disable security controls. Provide sanitized findings or a patch to the owner if push is blocked.
+
+Provider lists in exact-label commands are examples: after detection, ask the user which supported apps to configure and pass only that approved list. Use `--onboard` for a new buyer unit; never fall back to USB runtime.

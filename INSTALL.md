@@ -62,25 +62,26 @@ provider hooks. See [customer setup](docs/CUSTOMER_SETUP.md). Existing firmware
 without persistent rename support needs `--keep-name` or a factory update.
 The commands below remain available for maintainers and exact-label installation.
 
-For a shipped unit, read the name on its label and run:
+For a pre-flashed shipped unit, use the guided buyer flow above. For an already
+identified maintainer unit, preview the detected supported apps and approve the
+specific providers before using an exact-label command:
 
 ```bash
-python3 install.py --ble-name TrafficLight-ABCD
+python3 scripts/provider_setup.py --detect
+python3 install.py --ble-name TrafficLight-ABCD --providers codex
 ```
 
-Replace the example with the actual label. For a developer unit without a label, keep exactly one board connected by USB for first discovery:
+Replace the name with the unit's actual label and `codex` with the approved
+providers, or use `--no-hooks` for a service-only update. No-argument installation
+opens guided onboarding; it never picks a USB board or learns a name silently.
+The guided flow reads BLE firmware identity and asks for visible identification.
+Optional explicit USB metadata/Q checking can cross-check the selected unit, but
+normal runtime always uses BLE.
 
-```bash
-python3 install.py
-```
-
-The installer creates an isolated environment under ~/.local/share/trafficlights/venv. It probes the board's `Q` response to learn its own TrafficLight-XXXX name; it never assumes the developer's board name. It installs a locally built Traffic Light Bridge app, a LaunchAgent that runs at **user login**, and eight owned hooks in ~/.codex/hooks.json, preserving unrelated hooks.
-
-For an already provisioned board powered elsewhere, supply its exact advertised name:
-
-```bash
-python3 install.py --ble-name TrafficLight-ABCD
-```
+The installer creates an isolated environment under
+~/.local/share/trafficlights/venv and installs the native login helper plus only
+selected provider hooks, preserving unrelated settings. Review normal Bluetooth
+access and hook trust before accepting the installation.
 
 For the original wired profile use `--transport serial`. Do not use an Arduino Uno sketch as nRF52840 firmware.
 
@@ -116,7 +117,7 @@ Run the full installer if hooks changed; review them again. Roll back through Gi
 
 ## Provider discovery
 
-The default installer detects supported local tools and installs their adapters. Preview with `python3 scripts/provider_setup.py --detect`; restrict with `python3 install.py --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).
+The guided installer inventories supported local tools and asks which adapters to configure. Preview with `python3 scripts/provider_setup.py --detect`; choose explicitly with `python3 install.py --onboard --providers codex claude`. Missing providers are not downloaded automatically. Existing disabled hooks and policies remain respected. See [provider setup and acceptance](docs/PROVIDERS.md).
 
 ## Source access and consumer packaging
 
@@ -129,11 +130,11 @@ This unit is already flashed, with green on P0.09, amber on P1.11, red on P1.13 
 Release it from the old Mac first, using `python3 manage_hooks.py disable` in this checkout. This disables the old Mac's traffic-light integration. Then, on the new Mac, clone this public repository and run:
 
 ```bash
-python3 install.py --ble-name "first clawdy"
+python3 install.py --ble-name "first clawdy" --providers codex
 python3 manage_hooks.py status
 python3 scripts/verify_hardware.py
 ```
 
-Allow Traffic Light Bridge Bluetooth access in macOS and review detected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop.
+Replace `codex` with the providers approved after detection. Allow Traffic Light Bridge Bluetooth access in macOS and review the selected provider hooks. Expect the three lights to blink together while searching, a short connection sequence, then normal tracked state. Require a connected `ble://` peer and board acknowledgements; confirm the LEDs visually. Only one Mac should control this unit at a time. New-Mac installation has not yet been tested on the user's second laptop.
 
 For release verification, agent handoff requirements, and restoration after disabling hooks, follow [the laptop handoff procedure](docs/LAPTOP_HANDOFF.md).

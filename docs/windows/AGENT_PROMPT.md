@@ -2,7 +2,7 @@
 
 The implementation now exists. Pull the current main branch and read INSTALL.md, docs/windows/INSTALL.md and docs/windows/findings/2026-10-07-mac-integration.md before using the detailed checklist below. Its earlier implementation/pending language is historical: verify and repair the current code instead of overwriting it with another whole-file version.
 
-Start with `git pull --ff-only`, `py -3 scripts/provider_setup.py --detect`, and `py -3 install.py --ble-name "first clawdy"`. First Clawdy already has the PWM firmware installed on Mac; no CIRCUITPY write is required. Review provider trust normally and restart existing sessions if needed. Verify real Gemini and Claude turns, concurrent chats, BLE reconnect and user-login startup. Gemini Windows commands use PowerShell `&` and single-quoted literal paths; do not replace them with cmd.exe or POSIX quoting.
+Start with `git pull --ff-only`, `py -3 scripts/provider_setup.py --detect`, and `py -3 install.py --ble-name "first clawdy" --providers claude gemini`. First Clawdy already has the PWM firmware installed on Mac; no CIRCUITPY write is required. Review provider trust normally and restart existing sessions if needed. Verify real Gemini and Claude turns, concurrent chats, BLE reconnect and user-login startup. Gemini Windows commands use PowerShell `&` and single-quoted literal paths; do not replace them with cmd.exe or POSIX quoting.
 
 Corporate policy is a boundary, not a defect to bypass. Do not disable DLP or alter trust/security records. If Git push is blocked, supply a sanitized patch/report through a user-approved channel; do not claim a local commit was pushed. Record each passed, failed, blocked and not-run check. Do not commit private account names, addresses or raw logs.
 
@@ -163,3 +163,5 @@ The owner authorizes implementing this Windows support, documenting findings and
 Final delivery should state: what is installed and physically verified; exact install/update/status/release commands; provider/platform coverage; startup/reconnect results; tests passed and not run; known limitations; redacted findings path; commit/branch/PR; and any specific remaining user action. Do not claim 'Windows ready' if this is only documentation or mocked tests.
 
 Begin now by reading the repository, inspecting the actual Windows environment, and recording baseline findings. Then implement and test the smallest complete native Windows path.
+
+Provider lists in exact-label commands are examples: after detection, ask the user which supported apps to configure and pass only that approved list. Use `--onboard` for a new buyer unit; never fall back to USB runtime.

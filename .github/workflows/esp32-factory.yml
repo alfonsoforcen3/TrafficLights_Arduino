@@ -1,0 +1,36 @@
+name: ESP32-C3 factory build
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firmware/esp32c3/**'
+      - '.github/workflows/esp32-factory.yml'
+  pull_request:
+    paths:
+      - 'firmware/esp32c3/**'
+      - '.github/workflows/esp32-factory.yml'
+permissions:
+  contents: read
+jobs:
+  compile:
+    name: Compile actual ESP32-C3 BLE firmware
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.x'
+      - name: Install pinned factory dependencies
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install ArduinoJson@7.4.3
+      - name: Compile explicit GPIO3/2/1 profile without hardware
+        run: |
+          arduino-cli version
+          arduino-cli compile --fqbn esp32:esp32:esp32c3:CDCOnBoot=cdc,FlashSize=4M \
+            --build-property 'compiler.cpp.extra_flags=-DCLAWDY_GREEN_GPIO=1 -DCLAWDY_AMBER_GPIO=2 -DCLAWDY_RED_GPIO=3 -DCLAWDY_ACTIVE_HIGH=1' \
+            --output-dir "$RUNNER_TEMP/clawdy-esp32c3" firmware/esp32c3

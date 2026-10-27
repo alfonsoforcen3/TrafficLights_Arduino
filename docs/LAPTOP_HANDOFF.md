@@ -35,18 +35,18 @@ The source repository is public. In a stable directory:
 ```bash
 git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
 cd TrafficLights_Arduino
-python3 install.py --ble-name "first clawdy"
+python3 install.py --ble-name "first clawdy" --providers codex
 python3 manage_hooks.py status
 python3 scripts/verify_hardware.py
 ```
 
-Replace the name for another unit with its actual name. Read INSTALL.md and provider documentation first. The installer sets up its own environment, service and detected local providers. Allow Traffic Light Bridge Bluetooth access using macOS's normal dialog, and review provider hooks/trust; never bypass privacy/trust stores or request passwords in chat. Keep the board powered and nearby. Its USB cable does not need to carry data to the new Mac.
+Replace the name for another unit with its actual name. Read INSTALL.md and provider documentation first. Preview providers with `python3 scripts/provider_setup.py --detect`, then replace `codex` with the approved supported providers. The installer sets up its own environment, service and selected local providers. Allow Traffic Light Bridge Bluetooth access using macOS's normal dialog, and review provider hooks/trust; never bypass privacy/trust stores or request passwords in chat. Keep the board powered and nearby. Its USB cable does not need to carry data to the new Mac.
 
 Require hardware_connected=true, transport=ble, a ble:// peer, current board reports and visible LED confirmation. The board plays its connection sequence then tracks the new Mac's sessions. Repeat documented restart/power-cycle tests as appropriate; record tests actually performed. Once set up, the local dashboard is http://127.0.0.1:8766/ on that Mac.
 
 ## Return to the original Mac
 
-Release the other Mac first. Run `python3 install.py --ble-name "first clawdy"` on the original Mac to reinstall hooks/service and complete normal permission/hook review. `--no-hooks` is appropriate only when those hook definitions already exist and remain approved; it will not restore hooks removed during release.
+Release the other Mac first. Run `python3 install.py --ble-name "first clawdy" --providers codex` on the original Mac to reinstall hooks/service and complete normal permission/hook review. `--no-hooks` is appropriate only when those hook definitions already exist and remain approved; it will not restore hooks removed during release.
 
 ## Known first clawdy profile
 

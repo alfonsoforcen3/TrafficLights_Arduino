@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-10-27 — Factory ESP32-C3 and buyer-first enrollment
+
+- Programmed unit `5D1C` with production ESP32-C3 firmware using its confirmed
+  GPIO3/2/1 wiring, leaving it searching without a Bluetooth connection here.
+- Corrected NimBLE target APIs, Arduino UUID naming collisions and a reproduced
+  USB rename-reply truncation; added bounded transport recovery regressions.
+- Made buyer setup the local-agent entry point, enforced BLE runtime, and added
+  explicit provider consent, saved-profile replacement checks and optional
+  exact-selected USB identity matching.
+- Updated maintainer/handoff examples for explicit approved provider selection
+  and added a real ESP32-C3 target compilation job.
+
+Verification: 273 hardware-free regression tests passed. The full target built,
+USB upload verified four region hashes, and USB identity/GPIO diagnostics,
+invalid rename rejection, complete valid rename acknowledgements and persistent
+names across two software reboots passed. Factory name was restored; owner
+confirmed production search LEDs. No BLE scan/connection, host install or hook
+changes were performed for this unit. Buyer-host BLE/provider acceptance,
+physical power cycles and native Windows acceptance remain pending. See the
+[factory record](docs/findings/2026-10-27-esp32c3-factory-handoff.md).
+
 ## 2026-10-27 — AI-assisted buyer setup and USB-powered product
 
 - Made the implementation repository publicly readable and verified anonymous access.
