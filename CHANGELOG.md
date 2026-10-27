@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-27 — Deterministic Mac child-pipe fixture
+
+- Replaced a timing-sensitive Python test child with a native readiness/fragment
+  handshake; the production response timeout and transport behavior are unchanged.
+- Verified immediate/delayed startup, complete NDJSON replies before EOF, negative
+  helper paths, native fixtures and 273 hardware-free regressions.
+
+See the [CI investigation](docs/findings/2026-10-27-macos-child-pipe-fixture.md).
+The running owner's app and device integrations were retained.
+
 ## 2026-10-27 — Factory ESP32-C3 and buyer-first enrollment
 
 - Programmed unit `5D1C` with production ESP32-C3 firmware using its confirmed
