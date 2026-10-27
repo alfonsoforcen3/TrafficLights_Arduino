@@ -9,29 +9,51 @@ not mean this source build is a qualified consumer release.
 Power your assembled, pre-flashed Clawdy through its USB power connection.
 USB supplies power; the laptop communicates with the toy over Bluetooth Low
 Energy (BLE). Ordinary setup does not require a USB data connection to the
-laptop. The searching LEDs blink together until a host connects. Turn on laptop
-Bluetooth and keep the toy nearby.
+laptop. Turn on laptop Bluetooth and keep the toy nearby. The ESP32-C3 factory firmware on unit `5D1C` has passed USB identity/GPIO
+checks, bounded LED diagnostics and saved-name checks across two software
+reboots. The owner confirmed its production search blink. Buyer-host BLE and
+real-provider acceptance remain pending; these factory USB checks do not
+establish customer readiness. See the [factory record](findings/2026-10-27-esp32c3-factory-handoff.md).
 Release any old controlling laptop before setup. Bluetooth is proximity-based,
 not Wi-Fi; nearby units can share a room but each needs a unique name and only
 one controlling laptop at a time.
 
 Use the local terminal on native macOS or Windows, Python 3.9+, and internet for
-Python packages. Mac BLE/Codex prototype operation has been physically verified;
-clean-customer onboarding remains pending. Native Windows onboarding acceptance
-also remains pending, including its `py -3` command. Linux/WSL and ordinary
-browser AI conversations are unsupported. No AI API key is required by the
-companion.
+Python packages. The public repository is
+<https://github.com/alfonsoforcen3/TrafficLights_Arduino>. Clone it into a
+stable local folder before asking the local assistant to follow `AGENTS.md`.
+The tested Mac prototype is a different nRF52840 unit; that history does not
+establish ESP32-C3 customer/provider acceptance. Clean-customer
+onboarding remains pending. Native Windows onboarding acceptance also remains
+pending, including its `py -3` command. Linux/WSL and ordinary browser AI
+conversations are unsupported. No AI API key is required by the companion.
 
 Use a public source checkout or an owner-supplied local build in a permanent
 folder such as `~/Clawdy` or `C:\Users\YOU\Clawdy`. There is no released
 prebuilt customer archive. Keep the checkout in place for updates/recovery; avoid
 moving it after setup because hook paths may refer to it.
 
+To create a checkout on macOS:
+
+```bash
+git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
+cd TrafficLights_Arduino
+```
+
+Then ask a terminal-capable local assistant in that checkout to follow
+`AGENTS.md`. Use native PowerShell and `py -3` for Windows only as an unaccepted
+candidate; do not claim Windows setup is verified.
+
 ## Ask a local AI assistant to set it up
 
 A buyer can tell a terminal-capable local AI assistant:
 
-> I have a new Clawdy powered by USB and near this computer. Please set it up by following `AGENTS.md`.
+> I have a new Clawdy powered by USB and near this computer. Before changing
+> anything, ask me to identify the exact toy, choose a nickname, approve which
+> detected AI apps to configure, and approve any package downloads. Use BLE for
+> control; default to all detected supported local apps I approve. Follow
+> `AGENTS.md` and walk me through Bluetooth and app trust approvals. Ask whether
+> I want an optional USB-to-BLE identity cross-check if the toy is data-connected.
 
 The assistant needs access to this computer's terminal and local checkout. An
 ordinary browser AI conversation cannot access local Bluetooth, select the toy,
@@ -43,10 +65,9 @@ python3 install.py --onboard
 
 On native Windows the candidate command is `py -3 install.py --onboard`; its
 native onboarding acceptance is still pending. Do not present it as verified.
-The first-run invocation with no arguments (`python3 install.py`) also opens the
-guided onboarding flow when no saved connection exists. Existing installations
-continue their prior install/update path; use `--onboard` to explicitly enter
-onboarding.
+The no-argument invocation (`python3 install.py`) opens guided onboarding,
+including when a saved profile exists. It displays the existing device and asks
+before replacement; use explicit maintainer flags for a direct update instead.
 
 ### Local-AI inventory and device discovery
 
@@ -58,12 +79,34 @@ python3 install.py --onboard --preflight --json
 
 It emits one JSON object on stdout (`version: 1`, `mode: "preflight"`); progress
 is on stderr. It reports platform/Python/dependency availability, detected
-providers and hook-policy preflight, and saved connection state. It does not
-scan Bluetooth, download dependencies, or write files. Its `customer_ready`
-field is always `false`.
+apps and hook-policy preflight, supported/unsupported adapter inventory, any
+saved unit (`existing_unit`), provider selection requirement and
+`runtime_transport: "ble"`. It does not scan Bluetooth, download dependencies,
+or write files. Its `customer_ready` field is always `false`. Review any saved
+device and transport with the buyer before replacement; never switch devices
+silently. Noninteractive replacement also requires `--replace-existing` after
+this review.
+
+### Optional USB identity cross-check
+
+USB data is not required. If the buyer wants to compare a USB-connected board
+with its BLE advertisement, first list USB metadata:
+
+```bash
+python3 install.py --onboard --list-usb --json
+```
+
+This does not open a port, query firmware, scan BLE, download packages or change
+files. JSON reports `mode: "usb_inventory"`, `ports_opened: false`,
+`bluetooth_scanned: false`, `mutations: false`, `runtime_transport: "ble"` and
+`customer_ready: false`. If pyserial is unavailable, the inventory reports that
+without installing it. Only an explicitly selected, allowlisted interface with
+its exact nonempty USB serial number may be queried later. The current allowlist
+includes Espressif USB Serial/JTAG `303A:1001` as a candidate interface; that
+identifier does not establish the exact board model or firmware.
 
 After the buyer powers the toy and approves needed package setup, list nearby
-UART advertisements:
+BLE UART advertisements. Discovery is separate from runtime control:
 
 ```bash
 python3 install.py --onboard --list-devices --json --yes
@@ -76,13 +119,27 @@ or configure the host. JSON uses `mode: "discovery"`,
 `firmware_verified: false`, `explicit_selection_required: true`, and
 `customer_ready: false`. Ask the buyer to identify the exact physical toy and
 select its advertised name; use `--device-address` to distinguish duplicate
-names. Never choose the first candidate automatically.
+names. Never choose the first candidate automatically. The only supported local
+adapters are Codex, Claude Code, Gemini CLI and Cursor; ordinary ChatGPT, Claude
+Desktop and Gemini web chats are unsupported. Detection does not prove live
+compatibility. For `--yes` setup, explicitly pass the buyer-approved
+`--providers ...` or `--no-hooks`; detecting an app never authorizes its hooks.
 
-Prefer interactive setup after the buyer identifies the device. The wizard
-confirms the selection with a red/amber/green sequence on that physical unit and
-requires the buyer to verify it. It then checks firmware identity/capability,
-offers naming only when supported, and installs the selected local provider
-hooks. Generic Bluetooth devices are not supported.
+Prefer interactive setup after the buyer makes their choices. The wizard shows
+the detected supported local apps; Enter selects all detected apps, and the
+buyer can explicitly select a subset or none. Ask for and confirm the buyer's
+approval before proceeding. The wizard lets the buyer select the physical unit,
+confirms it with a red/amber/green sequence on that toy, then checks firmware
+identity/capability before offering naming. It installs only the explicitly
+approved providers. Generic Bluetooth devices are not supported. USB remains
+the power source; the intended customer transport is BLE.
+
+For the optional cross-check, pass `--usb-port` and `--usb-serial` using the
+exact values selected from `--list-usb`. After the buyer confirms Apply, setup
+opens only that port for a bounded Q query, then compares immutable device ID,
+hardware family and BLE name with the selected BLE report. A mismatch stops
+before LED identification, rename or host installation. USB is never used for
+ongoing control, and setup does not fall back between transports.
 
 If the selected firmware reports rename support, you may choose a nickname. The
 wizard combines a shortened laptop name, nickname and an eight-hex device suffix
@@ -97,9 +154,10 @@ python3 install.py --onboard --ble-name "EXACT LABEL" --keep-name
 Wireless rename requires firmware that advertises rename capability. Older
 firmware can keep its current name. Do not flash a nice!nano image onto an ESP32
 or guess GPIO wiring. The host recognizes supported firmware protocols; it does
-not install firmware onto arbitrary Bluetooth boards. ESP32-C3 candidate hardware
-requires separate factory compilation/provisioning and physical qualification
-before shipment.
+not install firmware onto arbitrary Bluetooth boards. One ESP32-C3 unit now has
+a factory-built and USB-flashed BLE candidate with initial USB Q/GPIO checks.
+Rename persistence, reboot, visual LED, buyer-host BLE and provider checks
+remain open before shipment.
 
 For an offline plan preview (no scan, downloads or changes):
 
@@ -109,7 +167,9 @@ python3 install.py --onboard --dry-run --ble-name "EXACT LABEL" --nickname Pip -
 
 For noninteractive JSON setup, `--yes` accepts installation changes but cannot
 assert physical identity. Pass the exact selected `--ble-name`, `--nickname` or
-`--keep-name`, and selected `--providers` (or `--no-hooks`). If names collide,
+`--keep-name`, and explicitly approved `--providers` (or `--no-hooks`); `--yes`
+never means “enable all detected apps.” If preflight showed an existing unit,
+review it with the buyer and pass `--replace-existing` only with approval. If names collide,
 also pass the buyer-selected `--device-address`. Because JSON setup has no human
 confirmation prompt, `--identified-device` is required after the buyer has
 independently identified that exact physical toy; it is an operator assertion,
@@ -140,8 +200,9 @@ adapter permissions/policy. No privacy or trust bypass is part of setup.
 Review hooks in your actual local application: Codex `/hooks`, Claude Code
 `/hooks` and workspace trust, Gemini CLI `/hooks` panel, Cursor hooks/output.
 Detection is an inventory, not proof that a version is compatible or signed in.
-Claude/Gemini/Cursor adapters have software coverage; real-provider acceptance
-is still pending. Their underlying AI model does not affect adapter selection.
+Do not claim live provider support from detection or software checks alone.
+Verify an actual turn in every buyer-approved app on the customer's computer;
+real-provider acceptance for ESP32-C3 remains unestablished.
 
 ```bash
 python3 manage_hooks.py status

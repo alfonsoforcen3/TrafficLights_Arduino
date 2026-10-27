@@ -79,7 +79,7 @@ class WizardUI:
 def preflight_report(args):
     """Read-only agent inventory: no Bluetooth, subprocess, downloads or writes."""
     detected = provider_setup.detect()
-    selected = [] if args.no_hooks else list(args.providers or detected)
+    selected = [] if args.no_hooks else list(args.providers or [])
     providers = {}
     for provider in dict.fromkeys([*detected, *selected]):
         try:
@@ -92,21 +92,23 @@ def preflight_report(args):
                                'selected': provider in selected, 'hook_policy': policy, 'reason': reason}
     connection = RUNTIME / 'connection.json'
     saved = 'absent'
+    saved_unit = None
     if connection.exists():
         try:
-            value = json.loads(connection.read_text())
-            valid = (isinstance(value, dict) and value.get('transport') in ('ble', 'serial')
-                     and (value.get('transport') != 'ble' or isinstance(value.get('ble_name'), str)
-                          and bool(value['ble_name'].strip())))
-            saved = 'present' if valid else 'recovery_required'
-        except (OSError, ValueError):
+            value = existing_connection()
+            saved_unit = {key: value[key] for key in ('transport', 'ble_name', 'device_id')}
+            saved = 'present'
+        except (OSError, ValueError, RuntimeError):
             saved = 'recovery_required'
     system = platform.system()
     return {'version': 1, 'mode': 'preflight', 'mutations': False, 'bluetooth_scanned': False,
             'platform': system, 'platform_supported': system in ('Darwin', 'Windows'),
             'python_version': platform.python_version(), 'python_supported': sys.version_info >= (3, 9),
             'dependencies': {name: importlib.util.find_spec(name) is not None for name in ('venv', 'pip', 'bleak', 'serial')},
-            'saved_connection': saved, 'providers': providers, 'customer_ready': False,
+            'saved_connection': saved, 'existing_unit': saved_unit, 'providers': providers,
+            'supported_adapters': provider_setup.adapter_inventory(),
+            'provider_selection_required': args.providers is None and not args.no_hooks,
+            'runtime_transport': 'ble', 'customer_ready': False,
             'next_steps': ['Discover powered toys with --list-devices; explicitly select and physically identify yours.',
                            'Approve normal Bluetooth access and provider hook/workspace trust.',
                            'Require BLE GPIO acknowledgements and human visible LEDs; real-provider tests remain separate.']}
@@ -120,6 +122,38 @@ class BootstrapResult:
 def make_name(laptop, nickname):
     """Preview the shared naming policy; the suffix needs verified device identity."""
     return device_identity.make_device_name(laptop, nickname, '00000000')[:-8] + '<UID8>'
+
+
+def existing_connection():
+    """Read the current owned profile without contacting its device or service."""
+    path = RUNTIME / 'connection.json'
+    if not path.exists():
+        return None
+    raw = path.read_bytes()
+    try:
+        value = json.loads(raw)
+        if (not isinstance(value, dict) or value.get('transport') not in ('ble', 'serial')
+                or (value.get('transport') == 'ble' and
+                    (not isinstance(value.get('ble_name'), str) or not value['ble_name'].strip()))):
+            raise ValueError('Invalid saved profile')
+    except (ValueError, TypeError) as error:
+        raise RuntimeError('Existing connection.json needs recovery; review it before replacing this laptop integration.') from error
+    return {'transport': value['transport'], 'ble_name': value.get('ble_name'),
+            'device_id': value.get('device_id'), 'fingerprint': hashlib.sha256(raw).hexdigest()}
+
+
+def confirm_existing_connection(args, ui):
+    saved = existing_connection()
+    args.existing_connection = saved
+    if saved is None:
+        return
+    ui.detail('Existing laptop integration', '%s | %s | UID %s' %
+              (saved['transport'], saved['ble_name'] or 'no BLE name', saved['device_id'] or 'unavailable'))
+    ui.status('info', 'Enrollment replaces this laptop connection/profile. Disconnect or release its previous toy first.')
+    if args.yes and not args.replace_existing:
+        raise RuntimeError('Existing laptop integration requires explicit --replace-existing after reviewing its name and identity in --preflight.')
+    if not args.replace_existing and not confirm('Replace this existing laptop integration?'):
+        raise RuntimeError('Existing integration kept; no dependency, device, companion or hook changes performed.')
 
 
 def confirm(message, yes=False, input_fn=input):
@@ -157,9 +191,13 @@ def choose_providers(args, input_fn=input):
     if args.providers is not None:
         return args.providers
     found = list(provider_setup.detect())
-    WizardUI(getattr(args, 'no_color', False), getattr(args, 'json', False)).detail('Detected AI apps', ', '.join(found) or 'none')
-    if args.yes or args.dry_run:
+    ui = WizardUI(getattr(args, 'no_color', False), getattr(args, 'json', False))
+    ui.detail('Detected supported adapters', ', '.join(found) or 'none')
+    ui.detail('Adapter limits', 'Codex, Claude Code, Gemini CLI, Cursor only. Ordinary ChatGPT/Claude Desktop/Gemini web chats have no adapter.')
+    if args.dry_run:
         return found
+    if args.yes:
+        raise RuntimeError('Choose --providers explicitly or --no-hooks; --yes does not approve automatically detected apps.')
     if not sys.stdin.isatty():
         raise RuntimeError('Use --providers or --no-hooks for noninteractive setup.')
     text = input_fn('Providers (codex claude gemini cursor), Enter for detected, or none: ').strip().lower()
@@ -172,7 +210,7 @@ def choose_providers(args, input_fn=input):
 
 
 def installer_command(name, providers, device_id=None):
-    command = [sys.executable, str(ROOT / 'install.py'), '--ble-name', name]
+    command = [sys.executable, str(ROOT / 'install.py'), '--transport', 'ble', '--ble-name', name]
     if device_id:
         command += ['--device-id', device_id]
     return command + (['--providers', *providers] if providers else ['--no-hooks'])
@@ -313,9 +351,12 @@ class RecoveryRecord:
 
 
 def complete_setup(args, ui, selected, report, providers, nickname):
+    if existing_connection() != getattr(args, 'existing_connection', None):
+        raise RuntimeError('Laptop connection/profile changed during setup. Review it and confirm a new enrollment before installing.')
     target = (device_identity.make_device_name(args.laptop_name, nickname, report['device_id'])
               if nickname else report['ble_name'])
     recovery = RecoveryRecord(selected, report, target, providers)
+    recovery.data['usb_identity_match'] = getattr(args, 'usb_identity', None) is not None
     recovery.data['physical_selection'] = 'operator_asserted' if args.identified_device else 'visible_confirmed'
     changes_possible = False
     try:
@@ -334,6 +375,8 @@ def complete_setup(args, ui, selected, report, providers, nickname):
         else:
             ui.status('ok', 'Keeping your toy name: ' + target)
         recovery.save('installing')
+        if existing_connection() != getattr(args, 'existing_connection', None):
+            raise RuntimeError('Laptop connection/profile changed before host installation; review and confirm a new enrollment.')
         changes_possible = True
         ui.phase(5, 'Install & check')
         ui.status('working', 'Installing the local companion and your selected hooks...')
@@ -405,6 +448,8 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument('--ble-name', help='Exact current name printed on the device or seen in Bluetooth discovery')
     result.add_argument('--device-address', help='Disambiguate identical names using the address/UUID shown by discovery')
+    result.add_argument('--usb-port', help='Optional identity Q on this exact allowlisted USB interface; never a runtime transport')
+    result.add_argument('--usb-serial', help='Exact USB serial number from --list-usb, required with --usb-port')
     result.add_argument('--nickname', help='Your chosen device name; paired with this laptop name')
     result.add_argument('--laptop-name', default=socket.gethostname().split('.')[0])
     result.add_argument('--keep-name', action='store_true', help='Keep the firmware advertisement unchanged')
@@ -416,9 +461,11 @@ def parser():
     mode.add_argument('--dry-run', action='store_true', help='Offline plan only: no scan, connection, downloads or changes')
     mode.add_argument('--preflight', action='store_true', help='Read-only OS/Python/provider/policy inventory; no scan, downloads or changes')
     mode.add_argument('--list-devices', action='store_true', help='List nearby UART candidates only; no identity exchange, rename, hooks or service installation')
+    mode.add_argument('--list-usb', action='store_true', help='Read USB port metadata only; never open a serial port, scan BLE, download or install')
     result.add_argument('--json', action='store_true', help='Machine-readable result on stdout; progress goes to stderr')
     result.add_argument('--identified-device', action='store_true', help='Noninteractive assertion: you have already identified this exact physical device')
     result.add_argument('--skip-verification', action='store_true', help='Install only; leave LED/provider acceptance explicitly pending')
+    result.add_argument('--replace-existing', action='store_true', help='Confirm replacing the existing laptop connection/profile after reviewing --preflight')
     result.add_argument('--scan-timeout', type=float, default=8.0)
     return result
 
@@ -435,6 +482,15 @@ def main(argv=None):
         raise ValueError('Current Bluetooth name must fit 1-29 UTF-8 bytes without controls.')
     if args.device_address is not None and not args.device_address.strip():
         raise ValueError('Device discovery address cannot be blank.')
+    if bool(args.usb_port) != bool(args.usb_serial):
+        raise ValueError('Optional USB identity needs both --usb-port and --usb-serial from --list-usb.')
+    for value in (args.usb_port, args.usb_serial):
+        if value is not None and (not value.strip() or any(ord(c) < 32 or ord(c) == 127 for c in value)):
+            raise ValueError('USB selection must be nonempty and contain no controls.')
+    if args.usb_port and (args.preflight or args.list_devices or args.list_usb):
+        raise ValueError('USB identity selection belongs on a separate enrollment command, after metadata review.')
+    if args.list_usb and (args.ble_name or args.device_address):
+        raise ValueError('--list-usb lists metadata only; BLE selection belongs on a separate enrollment command.')
     if args.providers is not None:
         args.providers = list(dict.fromkeys(args.providers))
     if args.keep_name and args.nickname:
@@ -443,16 +499,23 @@ def main(argv=None):
         raise ValueError('Choose --providers or --no-hooks, not both.')
     if not 1 <= args.scan_timeout <= 60:
         raise ValueError('Scan timeout must be between 1 and 60 seconds.')
-    if not (args.preflight or args.list_devices) and (args.yes or args.dry_run) and (
+    if not (args.preflight or args.list_devices or args.list_usb) and (args.yes or args.dry_run) and (
             not (args.ble_name or args.device_address) or not (args.nickname or args.keep_name)):
         raise ValueError('--yes/--dry-run require --ble-name or --device-address, and --nickname or --keep-name.')
-    if args.json and not (args.preflight or args.dry_run or args.yes):
+    if args.yes and not (args.preflight or args.list_devices or args.list_usb or args.dry_run) and args.providers is None and not args.no_hooks:
+        raise ValueError('--yes needs explicit --providers or --no-hooks before downloading or connecting.')
+    if args.json and not (args.preflight or args.list_usb or args.dry_run or args.yes):
         raise ValueError('Machine-readable live setup/discovery needs --yes; use --preflight first.')
-    if args.list_devices and (args.nickname or args.keep_name or args.providers or args.no_hooks
-                             or args.identified_device or args.skip_verification):
-        raise ValueError('--list-devices only lists candidates; supply setup choices on a separate enrollment command.')
+    if (args.list_devices or args.list_usb) and (args.nickname or args.keep_name or args.providers or args.no_hooks
+                             or args.identified_device or args.skip_verification or args.replace_existing):
+        raise ValueError('Discovery only lists candidates; supply setup choices on a separate enrollment command.')
     if args.preflight:
         print(json.dumps(preflight_report(args), indent=2))
+        return 0
+    if args.list_usb:
+        print(json.dumps({'version': 1, 'mode': 'usb_inventory', **device_identity.usb_inventory(),
+                          'ports_opened': False, 'bluetooth_scanned': False, 'mutations': False,
+                          'runtime_transport': 'ble', 'customer_ready': False}, indent=2))
         return 0
     ui = WizardUI(args.no_color, args.json)
     ui.banner(args.laptop_name, preview=args.dry_run)
@@ -462,6 +525,8 @@ def main(argv=None):
         require_platform()
         if sys.version_info < (3, 9):
             raise RuntimeError('Use Python 3.9 or newer before Clawdy setup.')
+        if not args.list_devices:
+            confirm_existing_connection(args, ui)
         # Fail explicit policy/configuration checks before downloading anything.
         # Bootstrap before interactive choices, since it relaunches with argv.
         if args.providers is not None or args.no_hooks:
@@ -496,10 +561,15 @@ def main(argv=None):
     if nickname:
         ui.detail('Naming', 'Laptop + nickname + unique device suffix; shortened to fit Bluetooth.')
     ui.detail('AI app hooks', ', '.join(providers) or 'none (companion only)')
+    if args.usb_port:
+        ui.detail('Optional USB identity Q', '%s | USB serial %s (BLE runtime remains required)' % (args.usb_port, args.usb_serial))
     ui.detail('Access', 'Normal Bluetooth permission and app hook/trust review are required.')
     if args.dry_run:
         print(json.dumps({'dry_run': True, 'current_name': args.ble_name, 'requested_name': desired,
                           'installer': None if nickname or not desired else installer_command(desired, providers),
+                          'runtime_transport': 'ble', 'usb_identity_requested': bool(args.usb_port),
+                          'providers': providers,
+                          'provider_selection_confirmed': args.providers is not None or args.no_hooks,
                           'rename_requires_firmware_support': bool(nickname),
                           'compatibility': 'Only verified supported UART firmware; board model alone is insufficient. ESP32 acceptance pending.',
                           'final_name_requires_device_identity': bool(nickname)}, indent=2))
@@ -518,13 +588,23 @@ def main(argv=None):
         ui.status('info', 'Cancelled; device and host settings unchanged.')
         return 0
     ui.phase(4, 'Make it yours')
+    args.usb_identity = None
+    if args.usb_port:
+        ui.status('working', 'Querying only the selected USB port; its immutable ID must match the selected BLE toy.')
+        args.usb_identity = device_identity.inspect_usb_device(args.usb_port, args.usb_serial)
     ui.status('working', 'Checking the selected toy firmware and identity...')
     report = asyncio.run(device_identity.inspect_device(selected['address']))
     if not isinstance(report, dict):
         raise RuntimeError('Selected toy returned a malformed firmware report.')
+    if args.usb_identity is not None and (report.get('device_id') != args.usb_identity.get('device_id')
+            or report.get('hardware_family') != args.usb_identity.get('hardware_family')
+            or report.get('ble_name') != args.usb_identity.get('ble_name')):
+        raise RuntimeError('USB and BLE identities/names do not match; no LED identification, rename or host installation performed.')
     final_name = report.get('ble_name')
     if not isinstance(final_name, str) or not 1 <= len(final_name.encode('utf-8')) <= 29 or any(ord(c) < 32 or ord(c) == 127 for c in final_name):
         raise RuntimeError('Verified board did not report its Bluetooth name.')
+    if selected['name'] and final_name != selected['name']:
+        raise RuntimeError('Selected advertisement and firmware name differ; rediscover and confirm this toy before setup changes.')
     if (not sys.stdin.isatty() or args.json) and not args.identified_device:
         raise RuntimeError('Physical selection needs confirmation. Run interactively or provide --identified-device only after independently identifying this exact toy.')
     ui.status('info', 'Watch YOUR toy: red, amber, green, then its previous state.')

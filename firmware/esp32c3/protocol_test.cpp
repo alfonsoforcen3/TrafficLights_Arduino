@@ -26,6 +26,9 @@ int main(int argc, char** argv) {
     for (int i = 0; i < 10000; ++i) assert(parser.feed('R') == P::Event::None);
     assert(parser.feed('\n') == P::Event::Overflow);
     assert(parser.feed('O') == P::Event::Command);
+    parser.feed('!'); parser.feed('{'); parser.feed(0); parser.feed('}');
+    assert(parser.feed('\n') == P::Event::Overflow);
+    assert(parser.feed('Q') == P::Event::Command);
   } else if (scenario == "metadata") {
     for (unsigned char value : std::string("N9999\nP15\n")) assert(parser.feed(value) == P::Event::None);
     assert(parser.count == 9999 && parser.provider_mask == 15);

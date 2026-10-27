@@ -6,9 +6,18 @@ Use a stable checkout path: provider hooks can point to that path.
 
 | Host | Installation / activation | Current evidence |
 | --- | --- | --- |
-| Native macOS | Existing local installer and login helper | BLE hardware, OLED and Codex hook signals verified on the prototype; clean customer onboarding pending |
+| Native macOS | Existing local installer and login helper | BLE/OLED/Codex prototype evidence is from the separate nRF52840 unit; clean customer onboarding pending |
 | Native Windows | Existing installer and user Startup launcher; onboarding command is a candidate | This revision needs native BLE, OLED, onboarding, real-provider and login acceptance |
 | Linux / WSL | Installer rejects this platform; no supported activation | Hardware-free tests only; see Linux section |
+
+The ESP32-C3 unit with USB identity suffix `5D1C` passed a full Arduino-ESP32
+3.3.2 / ArduinoJson 7.4.3 build and USB upload; all four upload regions passed
+hash verification after a complete 4 MiB backup. Its first USB Q and red/amber/
+green GPIO readbacks passed, and it reported BLE advertising but no connected
+host. Rename persistence/reboot, production-firmware visible LED confirmation,
+and buyer-host BLE/provider acceptance remain pending. Earlier owner-confirmed
+visual LED evidence applies only to the standalone diagnostic. USB powers the
+product; customer control is intended over BLE.
 
 ## New buyer setup through a local AI assistant
 
@@ -19,24 +28,34 @@ Terminal:
 python3 install.py --onboard
 ```
 
-This interactive candidate discovers nearby compatible BLE devices and asks the
-buyer to identify the intended toy and select local app hooks. USB supplies
-power; normal laptop communication is BLE, so no USB data connection is needed.
-The buyer still grants normal OS permissions, reviews provider trust, and
-confirms visible LEDs. Clean-customer onboarding is not yet accepted.
+Before changing settings, the local assistant must ask the buyer to identify the
+physical toy, choose or keep its name, approve the detected supported apps to
+configure, and approve any needed dependency downloads. The default is all
+detected supported local apps the buyer approves. The interactive candidate
+lists BLE advertisements, asks the buyer to choose the intended device and
+confirm the plan, then connects to check identity and displays a light sequence
+for physical confirmation before rename or host installation. USB supplies
+power; customer control is intended over BLE, so no USB data connection is
+needed. The buyer still grants normal OS permissions, reviews provider trust,
+and confirms visible LEDs. Clean-customer onboarding is not yet accepted; the
+setup result's `customer_ready` remains false pending actual acceptance gates.
 
 On native Windows the candidate command is `py -3 install.py --onboard`, but
 native Windows onboarding acceptance is pending. Ordinary browser AI chats,
 Linux, and WSL cannot run this local setup flow. See [customer setup](CUSTOMER_SETUP.md)
 and [agent instructions](CUSTOMER_AGENT.md).
 
-For a first-run checkout with no saved connection, `python3 install.py` also
-opens onboarding; `--onboard` enters it explicitly. The agent-oriented workflow
-uses a read-only preflight, advertisement-only discovery and then an explicitly
-selected interactive setup. Preflight and discovery never mark the unit ready.
-See [customer setup](CUSTOMER_SETUP.md) for the JSON fields, safety gates and
-noninteractive rules. The known-name steps below are the maintainer/tester
-install and handoff path, not the first-time buyer workflow.
+`python3 install.py` with no arguments always opens onboarding, including when a
+saved profile exists. The flow shows the current device and asks before
+replacement; direct maintainer updates must use explicit flags. The
+agent-oriented workflow uses a read-only preflight, optional USB metadata-only
+inventory, advertisement-only BLE discovery and then explicit buyer choices.
+USB identity Q is optional and only compares an exact selected USB unit with its
+BLE identity; it never becomes the runtime transport. These previews never mark
+the unit ready. See [customer setup](CUSTOMER_SETUP.md) for JSON fields, USB
+identity checks, safety gates and noninteractive rules. The known-name steps
+below are the maintainer/tester install and handoff path, not the first-time
+buyer workflow.
 
 ## Before a maintainer install
 
@@ -63,14 +82,15 @@ Run in Terminal:
 git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
 cd TrafficLights_Arduino
 python3 scripts/provider_setup.py --detect
-python3 install.py --ble-name "TrafficLight-ABCD"
+python3 install.py --transport ble --ble-name "TrafficLight-ABCD" --providers codex
 ```
 
 The installer activates the companion immediately and installs a user login
 LaunchAgent. It creates `~/.local/share/trafficlights/venv`, installs Traffic
-Light Bridge and detected provider hooks, and preserves unrelated settings.
-To select only certain installed providers, use
-`python3 install.py --ble-name "TrafficLight-ABCD" --providers codex claude`.
+Light Bridge and only the explicitly listed provider hooks, and preserves
+unrelated settings. Direct maintainer installation requires `--providers ...`
+or `--no-hooks`; detection alone never authorizes hooks. To choose more providers,
+use `python3 install.py --transport ble --ble-name "TrafficLight-ABCD" --providers codex claude`.
 
 Allow **Traffic Light Bridge** under System Settings → Privacy & Security →
 Bluetooth if prompted. Authenticate directly in OS dialogs. Review the Traffic
@@ -108,13 +128,15 @@ dependencies, USB writes or Startup execution are blocked.
 git clone https://github.com/alfonsoforcen3/TrafficLights_Arduino.git
 cd TrafficLights_Arduino
 py -3 scripts/provider_setup.py --detect
-py -3 install.py --ble-name "TrafficLight-ABCD"
+py -3 install.py --transport ble --ble-name "TrafficLight-ABCD" --providers codex
 ```
 
 The installer activates the companion immediately, adds detected provider hooks,
 and creates a per-user `TrafficLightBridge.vbs` in the Windows Startup folder.
 This launches pythonw at login; it is not a Windows service and has no automatic
-crash restart. Select providers with `--providers codex claude` if desired.
+crash restart. Use `--providers codex claude` to install only those hooks, or
+`--no-hooks` to configure only the companion. Direct install requires an
+explicit provider choice.
 Review hooks/workspace trust inside each provider as described above.
 
 ```powershell

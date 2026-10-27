@@ -1,19 +1,23 @@
 # ESP32-C3 engineering candidate — not a qualified shipping profile
 
-The new `firmware/esp32c3/` source is a development candidate for an explicitly
-identified ESP32-C3 production board. It does not replace the tested nRF52840
-firmware. No ESP32-C3 board was connected, compiled with its Arduino toolchain,
-flashed, or physically accepted in this iteration. No GPIO assignment, USB power circuit, OLED wiring, or vendor-specific
-“SuperMini” compatibility has been inferred.
+The `firmware/esp32c3/` source is a development candidate for the explicitly
+identified ESP32-C3 unit. It does not replace the tested nRF52840 firmware. USB
+evidence exists for a separate LED diagnostic on two units, including the
+current USB unit with MAC suffix `5D1C`; that does not qualify the full BLE
+firmware, customer onboarding, or provider integration. The precise PCB vendor
+and board revision beyond the reported ESP32-C3 module identity remain unknown.
 
-## Standalone LED test accepted on one unit — 26 October 2026
+## Standalone LED diagnostic accepted on two units — 26/27 October 2026
 
 A separate [cable-only diagnostic](../firmware/esp32c3_led_test/README.md) was
 compiled, uploaded and physically confirmed on the owner's ESP32-C3 Super Mini:
 red GPIO3, amber GPIO2, green GPIO1, active-high. All five test phases were also
 verified by USB GPIO readback. See the [test evidence](findings/2026-10-26-esp32c3-led-test.md).
-This acceptance applies to that diagnostic and unit only. The BLE engineering
-candidate below has not thereby gained full-target or physical BLE acceptance.
+This acceptance applies to that diagnostic and the identified unit only. A
+second, distinct unit (`5D1C`) passed the same five-phase USB diagnostic on
+27 October; see [the recorded test](findings/2026-10-26-esp32c3-led-test.md).
+The USB LED test is not evidence of BLE connectivity, USB factory firmware
+acceptance, or customer/provider setup.
 
 ## Factory inputs and build boundary
 
@@ -26,15 +30,19 @@ deliberately emits a compiler error while these inputs are missing and rejects
 duplicate pins. Runtime checks reject GPIOs unavailable for output, but cannot
 detect a pin reserved by a particular board's flash, USB, boot or wiring.
 
-Open `firmware/esp32c3/esp32c3.ino` in an Arduino-ESP32 **3.x** environment with
-the actual ESP32-C3 board target and Bluedroid enabled, plus ArduinoJson **7.x**.
-Record/pin the exact core/library versions after a successful target compilation;
-these major-version requirements are not a tested toolchain lock. Supply the
-verified macros through factory build flags or an approved board-specific build
+The first full-target attempt with Arduino-ESP32 3.3.2 stopped because the C3
+target lacks the Bluedroid header `esp_gap_ble_api.h`; the target uses NimBLE.
+After porting, the full target compiled with Arduino-ESP32 3.3.2 and ArduinoJson
+7.4.3 (680,584 bytes flash, 28,560 bytes static RAM) and was uploaded over USB;
+all four written regions passed hash verification. This establishes the factory
+build and upload on unit `5D1C`, not customer BLE acceptance. Supply verified
+GPIO/polarity macros through factory build flags or an approved board-specific
 profile. There is intentionally no generic ready-to-flash binary or guessed-pin
 upload command. USB firmware provisioning belongs to factory/service workflows,
 with the correct board and prior data/configuration preserved. Customers receive
-pre-flashed units and use Bluetooth onboarding without a computer USB cable.
+pre-flashed units; USB powers Clawdy while customer control is intended to use
+BLE and does not require a computer USB data connection. Do not treat USB serial
+as the normal customer control transport.
 
 Green uses 5 kHz **12-bit** PWM, default duty 2048 of 4095, configurable with
 `CLAWDY_GREEN_DUTY`. This is approximately 50% electrical duty, not calibrated
@@ -44,7 +52,7 @@ The 12-bit configuration fits the default 40 MHz XTAL LEDC source; 13 bits at
 5 kHz would require a faster source and could fail before BLE startup. Frequency
 and duty still require measurement on the actual board/toolchain.
 
-## Host protocol
+## Source-level host protocol and first USB Q report
 
 The candidate exposes the same Nordic UART UUIDs as the nRF52840 profile:
 service `6e400001-b5a3-f393-e0a9-e50e24dcca9e`, RX `...0002...`, TX `...0003...`.
@@ -66,15 +74,23 @@ commands never send. A report interrupted by overflow may be incomplete and must
 not be treated as acknowledged. A malformed/oversized identity frame within an
 otherwise intact transport is still consumed through its terminating newline.
 
-Q declares `firmware=traffic-esp32c3-v1`, `hardware_family=esp32c3`, `device_id`
-as the full uppercase eFuse base MAC hex string, `identity_protocol=1`, and
-`rename_supported` only after the Preferences namespace opens. The default name
-is `Clawdy-<full-device-id>`. GPIO keys are explicit `GPIO<number>` names with
-`green_pin`, `amber_pin`, `red_pin`, boolean commanded state, PWM details, mode,
-display phase, count and provider mask. These fields match the host's dynamic
-GPIO verification rather than claiming nRF pin labels.
+The first USB serial Q report from unit `5D1C` returned
+`firmware=traffic-esp32c3-v1`,
+`hardware_family=esp32c3`, `device_id` as the full uppercase eFuse base-MAC hex
+string, `identity_protocol=1`, and `rename_supported` only after the Preferences
+namespace opens. Its default name is `Clawdy-<full-device-id>`. GPIO keys are
+explicit `GPIO<number>` names with `green_pin`, `amber_pin`, `red_pin`, boolean
+commanded state, PWM details, mode, display phase, count and provider mask.
+The observed report identified the unit by suffix `5D1C`, reported name
+`Clawdy-E83DC1815D1C`, `identity_protocol=1`, `rename_supported=true`,
+`ble_connected=false`, advertising active, no BLE error, searching mode `O`,
+and GPIO mapping green 1 / amber 2 / red 3. Green PWM reported 12-bit,
+2048/4095, 5 kHz while on. These fields match the host's dynamic GPIO
+verification rather than claiming nRF pin labels. Rename persistence and
+post-reboot identity have not yet been confirmed.
 
-Persistent rename uses a fragmented frame bounded to 192 UTF-8 bytes:
+The source's persistent rename path accepts a fragmented frame bounded to 192
+UTF-8 bytes:
 
 ```text
 !{"op":"rename","name":"Laptop-Pet-1234ABCD","device_id":"FULLUPPERHEXMAC"}\n
@@ -84,11 +100,13 @@ Here `\n` denotes one newline byte. The exact immutable device ID is required;
 names accept 1–29 UTF-8 bytes, no ASCII controls or invalid UTF-8. Identity and
 metadata frames are consumed before legacy colour commands, including malformed
 or oversized payloads. Preferences stores only `clawdy/ble_name`, preserving
-other namespaces. Success requires persistent write and readback before the
-newline JSON acknowledgement containing `identity_ack=rename`, `ok=true`,
-`persistent=true`, device ID and the new BLE name. Failure carries `ok=false`
-and an error. The active connection is retained for the acknowledgement; the next
-disconnect/re-advertisement applies the new name, and startup reads it from NVS.
+other namespaces. The intended success path requires persistent write and
+readback before the newline JSON acknowledgement containing
+`identity_ack=rename`, `ok=true`, `persistent=true`, device ID and the new BLE
+name. Failure carries `ok=false` and an error. The active connection is retained
+for the acknowledgement; the next disconnect/re-advertisement applies the new
+name, and startup reads it from NVS. These behaviors require target build and
+device verification.
 
 Identity matching prevents accidental selection errors; it is not cryptographic
 ownership/authentication. This candidate does not implement a physical enrollment
@@ -106,17 +124,29 @@ pins and 12-bit PWM duty bounds. Run them with:
 python3 -m unittest tests.test_esp32_protocol -v
 ```
 
-These tests do not compile the Arduino sketch, ArduinoJson, BLE callbacks,
-Preferences integration, FreeRTOS queue/BLE disconnect integration or PWM hardware.
-The absent ESP32 Arduino platform/CLI prevented
-a target build. Compile the full sketch on the recorded factory toolchain before
-considering any upload. Then verify visible R/Y/G/B/O, searching/connection
-animation, real BLE GPIO acknowledgements, fragmented rename, persisted name
-after power loss, reconnect by immutable identity, duplicate nearby devices,
-metadata, queue overflow recovery, provider turns, sleep/login/reboot, and removal.
+These tests do not compile all Arduino BLE callbacks, Preferences integration,
+FreeRTOS queue/BLE disconnect integration, or prove PWM behavior on every unit.
+The standalone diagnostic is separate from the full sketch. On 27 October,
+the full target build/upload passed on unit `5D1C`, with all four written region
+hashes verified. USB identity/GPIO diagnostics, invalid rename rejection,
+complete valid rename acknowledgements, saved-name persistence across two
+software reboots and restoration of the factory name passed. The owner confirmed
+all three production search lights blink together. A reproduced 64-byte USB
+rename-reply truncation was corrected and the same sequence passed afterward.
+The pre-flash 4 MiB SHA-verified backup remains private. The final report shows
+`ble_connected=false` and stack advertising active; no radio scan or connection
+was performed. Physical power-cycle and buyer BLE/provider checks remain open.
+See the [factory handoff finding](findings/2026-10-27-esp32c3-factory-handoff.md).
+Then verify visible R/Y/G/B/O,
+searching/connection animation, real BLE GPIO acknowledgements, fragmented
+rename, persisted name after power loss, reconnect by immutable identity,
+duplicate nearby devices, metadata, queue overflow recovery, provider turns,
+sleep/login/reboot, and removal.
 Check LED changes remain responsive while notifications are fragmented under
-load. Record every pass/fail/not-run; do not promote ESP32 support from parser
-tests or a successful compilation alone.
+load. Record every pass/fail/not-run. Successful USB factory build/upload and
+first Q/GPIO checks do not establish customer Bluetooth pairing, BLE GPIO
+commands, provider turns, or release qualification. The actual buyer's computer
+must complete those checks; never pair this Mac during factory USB acceptance.
 
 ## Implementation references
 

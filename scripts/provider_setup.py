@@ -17,6 +17,8 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = Path.home() / '.local/share/trafficlights'
 SUPPORTED = ('codex','claude','gemini','cursor')
+ADAPTER_LABELS = {'codex': 'Codex local CLI/desktop hooks', 'claude': 'Claude Code hooks',
+                  'gemini': 'Gemini CLI hooks', 'cursor': 'Cursor hooks'}
 APP_BUNDLES = {'codex': (('Codex.app', 'com.openai.codex'), ('ChatGPT.app', 'com.openai.codex')),
                'cursor': (('Cursor.app', 'com.todesktop.230313mzl4w4u92'),)}
 EVENTS = {
@@ -26,6 +28,13 @@ EVENTS = {
     'cursor': {'sessionStart':'G','beforeSubmitPrompt':'Y','afterAgentThought':'Y',
                'afterAgentResponse':'Y','stop':'G','sessionEnd':'O'},
 }
+
+def adapter_inventory():
+    """Scope of shipped adapters, separate from installation evidence or acceptance."""
+    return {'supported': dict(ADAPTER_LABELS),
+            'unsupported': ['Ordinary ChatGPT chats', 'Claude Desktop chats', 'Gemini web chats',
+                            'Other AI apps or models without a repository adapter'],
+            'detection_is_acceptance': False}
 
 def settings_path(provider):
     return Path.home() / ('.cursor/hooks.json' if provider == 'cursor' else '.' + provider + '/settings.json')
@@ -218,13 +227,26 @@ def configure(provider, enable=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--detect',action='store_true',help='Read-only inventory; no configuration changes')
+    parser.add_argument('--json',action='store_true',help='Machine-readable inventory (requires --detect)')
     parser.add_argument('--providers',nargs='+',choices=SUPPORTED)
     parser.add_argument('--disable',action='store_true',help='Remove selected adapters, leaving shared service running')
     args = parser.parse_args()
+    if args.json and not args.detect:
+        parser.error('--json requires --detect')
     found = detect()
+    if args.detect and args.json:
+        print(json.dumps({'detected': found, **adapter_inventory(), 'mutations': False}, indent=2))
+        return
     print('Detected providers: '+(', '.join(found) or 'none'))
-    if args.detect: return
-    selected = list(args.providers or found)
+    if args.detect:
+        for provider, evidence in found.items():
+            print('  '+provider+': '+', '.join(evidence))
+        print('Unsupported: '+', '.join(adapter_inventory()['unsupported']))
+        print('Detection is inventory only; choose adapters explicitly and test real turns after hook trust review.')
+        return
+    if args.providers is None:
+        parser.error('Choose --providers explicitly after reviewing --detect; detection alone does not approve hook changes')
+    selected = list(dict.fromkeys(args.providers))
     if not args.disable:
         preflight(selected)
     for provider in selected:
