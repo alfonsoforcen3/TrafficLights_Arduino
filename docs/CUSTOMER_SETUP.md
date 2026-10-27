@@ -13,7 +13,7 @@ laptop. Turn on laptop Bluetooth and keep the toy nearby. The ESP32-C3 factory f
 checks, bounded LED diagnostics and saved-name checks across two software
 reboots. The owner confirmed its production search blink. Buyer-host BLE and
 real-provider acceptance remain pending; these factory USB checks do not
-establish customer readiness. See the [factory record](findings/2026-10-27-esp32c3-factory-handoff.md).
+establish customer readiness. See the [factory record](https://github.com/alfonsoforcen3/TrafficLights_Arduino/blob/main/docs/findings/2026-10-27-esp32c3-factory-handoff.md).
 Release any old controlling laptop before setup. Bluetooth is proximity-based,
 not Wi-Fi; nearby units can share a room but each needs a unique name and only
 one controlling laptop at a time.
