@@ -824,6 +824,32 @@ private final class ClawdyHost: NSObject, NSApplicationDelegate, NSMenuDelegate 
     }
 }
 
+// Test-only helper: launched directly by --self-test, before any UI/collector.
+private func pipeSelfTestChild(startupDelay: UInt32) -> Never {
+    func writeBytes(_ bytes: Data) {
+        var offset = 0
+        while offset < bytes.count {
+            let amount = bytes.withUnsafeBytes {
+                Darwin.write(STDOUT_FILENO, $0.baseAddress!.advanced(by: offset), bytes.count - offset)
+            }
+            if amount > 0 { offset += amount }
+            else if errno != EINTR { exit(2) }
+        }
+    }
+    func awaitToken(_ expected: UInt8) {
+        var token: UInt8 = 0
+        var amount: Int
+        repeat { amount = Darwin.read(STDIN_FILENO, &token, 1) } while amount < 0 && errno == EINTR
+        guard amount == 1 && token == expected else { exit(2) }
+    }
+    usleep(startupDelay * 1_000)
+    writeBytes(Data("{\"type\":\"ready\"}\n".utf8))
+    awaitToken(103); writeBytes(Data("{".utf8))
+    awaitToken(114); writeBytes(Data("\"type\":\"pong\",\"nonce\":1}\n".utf8))
+    awaitToken(120)
+    exit(0)
+}
+
 private func selfTest() throws {
     func check(_ value: Bool, _ name: String) {
         if !value { fputs("FAIL: \(name)\n", stderr); exit(1) }
@@ -1174,28 +1200,60 @@ private func selfTest() throws {
     check(resumed.contains(where: { $0.type == "preferences" }) && resumed.contains(where: { $0.snapshot?.revision == 1999 })
           && resumed.contains(where: { $0.nonce == 55 }), "full pipe recovers preferences, latest state and ping")
     check(resumed.count <= 4, "full pipe retains bounded coalesced output")
-    // A real child emits a tiny pong and keeps stdout open. The read must
-    // finish before EOF, not wait for the requested 4096 bytes to accumulate.
-    let child = Process(); let childOutput = Pipe()
-    child.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-    child.arguments = ["-u", "-c", "import os,time; os.write(1,b'{\"type\":\"pong\",\"nonce\":1}\\n'); time.sleep(2)"]
-    child.standardInput = FileHandle.nullDevice; child.standardOutput = childOutput
-    child.standardError = FileHandle.nullDevice
-    try child.run()
-    let childFD = childOutput.fileHandleForReading.fileDescriptor
-    _ = fcntl(childFD, F_SETFL, fcntl(childFD, F_GETFL) | O_NONBLOCK)
-    var tiny = Data(); let readDeadline = uptime() + 1
-    while uptime() < readDeadline && tiny.isEmpty {
-        if case .bytes(let bytes) = readPipeChunk(childFD) { tiny = bytes }
-        else { usleep(5_000) }
+    // Separate native-child startup from the unchanged one-second read budget.
+    // Handshake-controlled fragments guarantee that success requires a complete
+    // NDJSON frame while the child still owns its open stdout pipe.
+    for startupDelay in [0, 1_200] {
+        let child = Process(); let childInput = Pipe(); let childOutput = Pipe()
+        child.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+        child.arguments = ["--self-test-pipe-child", String(startupDelay)]
+        child.standardInput = childInput; child.standardOutput = childOutput
+        child.standardError = FileHandle.nullDevice
+        try child.run()
+        defer {
+            try? childInput.fileHandleForWriting.close()
+            if child.isRunning { child.terminate() }
+            let stopDeadline = uptime() + 0.3
+            while child.isRunning && uptime() < stopDeadline { usleep(5_000) }
+            if child.isRunning { _ = kill(child.processIdentifier, SIGKILL) }
+            try? childOutput.fileHandleForReading.close()
+        }
+        try childInput.fileHandleForReading.close()
+        try childOutput.fileHandleForWriting.close()
+        let childFD = childOutput.fileHandleForReading.fileDescriptor
+        check(fcntl(childFD, F_SETFL, fcntl(childFD, F_GETFL) | O_NONBLOCK) == 0,
+              "fixture output is nonblocking")
+        var childFramer = NDJSONFramer(maximumBytes: 128)
+        func readFrame(until deadline: TimeInterval) throws -> Data? {
+            while uptime() < deadline {
+                switch readPipeChunk(childFD) {
+                case .bytes(let bytes):
+                    if let frame = try childFramer.append(bytes).first { return frame }
+                case .notReady: usleep(5_000)
+                case .end: return nil
+                }
+            }
+            return nil
+        }
+        let readyFrame = try readFrame(until: uptime() + 5)
+        let ready = readyFrame.flatMap { try? JSONDecoder().decode(ChildMessage.self, from: $0) }
+        check(ready?.type == "ready", "native fixture startup handshake")
+        let readDeadline = uptime() + 1
+        try childInput.fileHandleForWriting.write(contentsOf: Data([103])) // g: first fragment
+        var prefix = Data()
+        while uptime() < readDeadline && prefix.isEmpty {
+            if case .bytes(let bytes) = readPipeChunk(childFD) { prefix.append(bytes) }
+            else { usleep(5_000) }
+        }
+        check(prefix == Data("{".utf8), "real child first fragment observed")
+        check(try childFramer.append(prefix).isEmpty, "partial child frame is retained")
+        try childInput.fileHandleForWriting.write(contentsOf: Data([114])) // r: remainder
+        let pongFrame = try readFrame(until: readDeadline)
+        let pong = pongFrame.flatMap { try? JSONDecoder().decode(ChildMessage.self, from: $0) }
+        check(child.isRunning, "tiny frame delivered before child EOF")
+        check(pong?.type == "pong" && pong?.nonce == 1, "real child complete small ack delivered")
+        try childInput.fileHandleForWriting.write(contentsOf: Data([120])) // x: release child
     }
-    let stillRunning = child.isRunning
-    if stillRunning { child.terminate() }
-    let stopDeadline = uptime() + 0.3
-    while child.isRunning && uptime() < stopDeadline { usleep(5_000) }
-    if child.isRunning { _ = kill(child.processIdentifier, SIGKILL) }
-    check(stillRunning, "tiny frame delivered before child EOF")
-    check(String(data: tiny, encoding: .utf8)?.contains("pong") == true, "real child small ack delivered")
     print("VirtualClawdy host self-test: UTF-8/framing, validation, freshness/replay, crash budget, detached production menu actions, accessible app status, burst/full-pipe recovery and real-child small-ack reads passed.")
 }
 
@@ -1203,6 +1261,10 @@ private func selfTest() throws {
     static func main() {
         signal(SIGPIPE, SIG_IGN)
         let args = Array(CommandLine.arguments.dropFirst())
+        if args.first == "--self-test-pipe-child" {
+            guard args.count == 2, let delay = UInt32(args[1]), delay <= 1_200 else { exit(2) }
+            pipeSelfTestChild(startupDelay: delay)
+        }
         if args.contains("--self-test") {
             do { try selfTest(); return } catch { fputs("Host self-test failed: \(error)\n", stderr); exit(1) }
         }
