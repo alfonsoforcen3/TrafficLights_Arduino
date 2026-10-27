@@ -1,69 +1,115 @@
-import importlib.util
+"""Device-status API and privacy tests using an isolated loopback HTTP fixture."""
 import json
-import sys
-import time
-import types
 import unittest
-from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from dashboard import Dashboard
+from scripts.dashboard import Dashboard, device_report, firmware_status
+
+
+def report(**values):
+    return dict({'firmware': 'traffic-nicenano-v1', 'mode': 'Y', 'transport': 'ble',
+                 'display_phase': 'tracking', 'green_pin': 'P0.09', 'amber_pin': 'P1.11',
+                 'red_pin': 'P1.13', 'P0.09': False, 'P1.11': True, 'P1.13': False,
+                 'green_pwm_duty': 32768, 'green_pwm_frequency': 5000,
+                 'session_count_kind': 'working', 'session_count': 2, 'working_provider_mask': 3}, **values)
+
 
 class DashboardTests(unittest.TestCase):
-    def test_disconnected_and_missing_samples_are_stale(self):
-        report = {'battery': {'sensor_voltage': .25}, 'private_prompt': 'secret'}
-        online = [True]
-        dash = Dashboard(lambda: report, lambda: online[0])
+    def test_status_is_sanitized_and_clears_when_disconnected_or_stale(self):
+        clock, wall, online = [0.0], [1000.0], [True]
+        raw = report(device_id='PRIVATE_UID', ble_name='PRIVATE_NAME', port='PRIVATE_PATH',
+                     private_prompt='PRIVATE_PROMPT', unexpected={'private': 'PRIVATE_DATA'})
+        dash = Dashboard(lambda: raw, lambda: online[0], clock=lambda: clock[0], wall_clock=lambda: wall[0])
         self.assertTrue(dash.status()['stale'])
-        dash.received(report)
-        self.assertFalse(dash.status()['stale'])
-        self.assertNotIn('private_prompt', dash.status())
-        online[0] = False
-        self.assertTrue(dash.status()['stale'])
+        dash.received(raw)
+        data = dash.status()
+        self.assertFalse(data['stale'])
+        self.assertEqual((data['mode'], data['transport'], data['working_count']), ('Y', 'ble', 2))
+        self.assertEqual(data['providers'], ['claude', 'codex'])
+        self.assertEqual(data['hardware_report']['P1.11'], True)
+        self.assertNotIn('PRIVATE', json.dumps(data))
+        self.assertEqual(set(data), {'connected', 'stale', 'age_seconds', 'updated_at', 'firmware',
+                                    'mode', 'transport', 'display_phase', 'working_count', 'providers', 'hardware_report'})
+        clock[0] = 12; wall[0] = -5000  # Wall-clock reversal cannot refresh an old GPIO report.
+        self.assertEqual(dash.status()['age_seconds'], 12)
+        self.assertEqual(dash.status()['updated_at'], 1000)
+        clock[0] = 91
+        stale = dash.status()
+        self.assertTrue(stale['stale'])
+        self.assertIsNone(stale['mode']); self.assertIsNone(stale['hardware_report'])
+        self.assertIsNone(stale['working_count']); self.assertEqual(stale['providers'], [])
+        dash.received(raw); online[0] = False
+        self.assertIsNone(dash.status()['hardware_report'])
         online[0] = True
-        dash.last_seen = time.time() - 100
-        self.assertTrue(dash.status()['stale'])
+        self.assertTrue(dash.status()['stale'])  # Connection alone cannot replay an old report.
+        dash.received(report(mode='G', session_count=0, working_provider_mask=3))
+        self.assertEqual(dash.status()['mode'], 'G')
+        self.assertEqual(dash.status()['providers'], [])
         dash.received(None)
-        self.assertEqual(dash.status()['history'], [])
+        self.assertIsNone(dash.status()['age_seconds'])
 
-    def test_http_rejects_foreign_host_and_private_routes(self):
+    def test_malformed_reports_clear_freshness_and_typed_allowlist_ignores_unknown_data(self):
+        dash = Dashboard(lambda: None, lambda: True)
+        for bad in (None, [], {}, {'firmware': 'unknown'}):
+            dash.received(report())
+            dash.received(bad)
+            self.assertTrue(dash.status()['stale'])
+        invalid = report(mode='PRIVATE_MODE', transport='PRIVATE_PORT', display_phase='PRIVATE_PHASE',
+                         green_pin='PRIVATE_PIN', green_pwm_duty=True, green_pwm_frequency=999999,
+                         session_count=True, working_provider_mask=True)
+        dash.received(invalid)
+        data = dash.status()
+        self.assertIsNone(data['mode']); self.assertIsNone(data['transport'])
+        self.assertIsNone(data['working_count']); self.assertEqual(data['providers'], [])
+        self.assertNotIn('PRIVATE', json.dumps(data))
+        self.assertNotIn('green_pin', data['hardware_report'])
+        self.assertNotIn('green_pwm_duty', data['hardware_report'])
+
+    def test_usb_reports_use_same_status_contract_and_copy_output_values(self):
+        raw = report(firmware='traffic-esp32c3-v1', transport='usb', green_pin='GPIO1',
+                     amber_pin='GPIO2', red_pin='GPIO3', GPIO1=False, GPIO2=True, GPIO3=False,
+                     green_pwm_duty=2048, green_pwm_resolution_bits=12)
+        dash = Dashboard(lambda: raw, lambda: True)
+        dash.received(raw)
+        data = dash.status()
+        self.assertEqual(data['transport'], 'usb')
+        self.assertEqual(data['hardware_report']['GPIO2'], True)
+        self.assertEqual(data['hardware_report']['green_pwm_resolution_bits'], 12)
+        raw['GPIO2'] = False
+        self.assertTrue(dash.status()['hardware_report']['GPIO2'])
+        data['hardware_report']['GPIO2'] = False
+        self.assertTrue(dash.status()['hardware_report']['GPIO2'])
+
+    def test_private_bridge_allowlist_retains_identity_but_omits_unrecognized_legacy_fields(self):
+        raw = report(device_id='fixture-id', ble_name='fixture-name', hardware_family='nrf52840',
+                     identity_protocol=1, rename_supported=True, obsolete_sensor={'legacy': 1},
+                     private_prompt='PRIVATE')
+        data = firmware_status(raw)
+        self.assertEqual((data['device_id'], data['ble_name']), ('fixture-id', 'fixture-name'))
+        self.assertEqual(data['identity_protocol'], 1)
+        self.assertTrue(data['rename_supported'])
+        self.assertEqual(data['P1.11'], True)
+        self.assertEqual(data['session_count'], 2)
+        self.assertNotIn('obsolete_sensor', data)
+        self.assertNotIn('PRIVATE', json.dumps(data))
+        self.assertNotIn('device_id', device_report(data))
+
+    def test_http_status_rejects_foreign_host_old_endpoint_and_private_routes(self):
         dash = Dashboard(lambda: None, lambda: False)
         server = dash.start(0)
         base = 'http://127.0.0.1:' + str(server.server_port)
+        host = '127.0.0.1:' + str(server.server_port)
         try:
-            req = Request(base + '/api/battery', headers={'Host':'127.0.0.1:'+str(server.server_port)})
-            with urlopen(req) as result:
-                self.assertTrue(json.load(result)['stale'])
-                self.assertIsNone(result.headers.get('Access-Control-Allow-Origin'))
-            for path, host, code in [('/api/battery','evil.example',403),('/../bridge.py','127.0.0.1:'+str(server.server_port),404)]:
-                with self.assertRaises(HTTPError) as error:
-                    urlopen(Request(base+path, headers={'Host':host}))
-                self.assertEqual(error.exception.code, code)
+            with urlopen(Request(base + '/api/status', headers={'Host': host}), timeout=2) as response:
+                data = json.load(response)
+                self.assertTrue(data['stale'])
+                self.assertIsNone(response.headers.get('Access-Control-Allow-Origin'))
+                self.assertEqual(response.headers['Cache-Control'], 'no-store')
+                self.assertIn("frame-ancestors 'none'", response.headers['Content-Security-Policy'])
+            for path, origin, code in [('/api/status', 'evil.example', 403), ('/api/battery', host, 404),
+                                       ('/../bridge.py', host, 404), ('/api/status/private', host, 404)]:
+                with self.assertRaises(HTTPError) as failure:
+                    urlopen(Request(base + path, headers={'Host': origin}), timeout=2)
+                self.assertEqual(failure.exception.code, code)
         finally:
             server.shutdown(); server.server_close()
-
-    def test_uncalibrated_adc_never_claims_battery_percent(self):
-        adc = types.SimpleNamespace(value=32768, reference_voltage=3.3)
-        replacements = {'analogio':types.SimpleNamespace(AnalogIn=lambda _: adc),
-                        'microcontroller':types.SimpleNamespace(pin=types.SimpleNamespace(P0_04=4))}
-        previous = {name:sys.modules.get(name) for name in replacements}
-        sys.modules.update(replacements)
-        try:
-            path = Path(__file__).resolve().parents[1] / 'firmware/nicenano/battery.py'
-            spec = importlib.util.spec_from_file_location('battery_test', path)
-            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-            battery = module.Battery()
-            sample = battery.sample()
-            self.assertAlmostEqual(sample['sensor_voltage'], 1.65, places=3)
-            self.assertIsNone(sample['estimated_percent'])
-            self.assertIsNone(sample['voltage'])
-            self.assertIsNone(sample['charging'])
-            battery.ratio = 2.4
-            self.assertTrue(battery.sample(True)['measurement_valid'])
-            battery.ratio = 10
-            self.assertIsNone(battery.sample(True)['estimated_percent'])
-        finally:
-            for name, original in previous.items():
-                if original is None:sys.modules.pop(name, None)
-                else:sys.modules[name] = original

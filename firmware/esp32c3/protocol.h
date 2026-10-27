@@ -55,7 +55,7 @@ class Protocol {
       pending_ = char(byte); used_ = 0; invalid_ = false; return Event::None;
     }
     char upper = byte >= 'a' && byte <= 'z' ? char(byte - 32) : char(byte);
-    if (upper && std::strchr("GYRBOQVTX", upper)) {
+    if (upper && std::strchr("GYRBOQTX", upper)) {
       command = upper;
       return Event::Command;
     }

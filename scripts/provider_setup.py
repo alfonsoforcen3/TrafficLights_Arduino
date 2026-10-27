@@ -2,10 +2,12 @@
 """Detect supported local AI apps and merge their owned traffic-light hooks."""
 import argparse
 import json
+import plistlib
 from pathlib import Path
 import shlex
 import shutil
 import time
+from xml.parsers.expat import ExpatError
 
 try:
     from scripts.platform_support import venv_python, hook_command
@@ -15,6 +17,8 @@ except ModuleNotFoundError:
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = Path.home() / '.local/share/trafficlights'
 SUPPORTED = ('codex','claude','gemini','cursor')
+APP_BUNDLES = {'codex': (('Codex.app', 'com.openai.codex'), ('ChatGPT.app', 'com.openai.codex')),
+               'cursor': (('Cursor.app', 'com.todesktop.230313mzl4w4u92'),)}
 EVENTS = {
     'gemini': {'SessionStart':'G','BeforeAgent':'Y',
                'BeforeTool':'Y','AfterTool':'Y','AfterAgent':'G','Notification':'','SessionEnd':'O'},
@@ -26,9 +30,10 @@ EVENTS = {
 def settings_path(provider):
     return Path.home() / ('.cursor/hooks.json' if provider == 'cursor' else '.' + provider + '/settings.json')
 
-def detect():
+def detect(application_directories=None):
     """Evidence of installation: executable, app bundle, or actual settings file; never execute an AI request."""
     evidence = {}
+    application_directories = (Path('/Applications'), Path.home()/'Applications') if application_directories is None else application_directories
     for provider in SUPPORTED:
         hits = []
         executables = {'cursor':('cursor','cursor-agent','agent')}.get(provider,(provider,))
@@ -37,11 +42,18 @@ def detect():
             # A generic 'agent' executable alone is not sufficient evidence of Cursor.
             if found and (executable != 'agent' or 'cursor' in found.lower()):
                 hits.append(found)
-        app_names = {'codex':('Codex.app','ChatGPT.app'),'claude':('Claude.app',),'cursor':('Cursor.app',)}
-        for app in app_names.get(provider,()):
-            for directory in (Path('/Applications'),Path.home()/'Applications'):
-                path = directory/app
-                if path.exists(): hits.append(str(path))
+        # Claude Desktop is not Claude Code. Likewise ordinary ChatGPT is not
+        # Codex merely because its app folder happens to have the same name.
+        for app, expected_id in APP_BUNDLES.get(provider, ()):
+            for directory in application_directories:
+                path = Path(directory)/app
+                try:
+                    with (path/'Contents/Info.plist').open('rb') as source:
+                        identity = plistlib.load(source)
+                    if isinstance(identity, dict) and identity.get('CFBundleIdentifier') == expected_id:
+                        hits.append(str(path))
+                except (OSError, ValueError, plistlib.InvalidFileException, ExpatError):
+                    pass
         config = Path.home()/'.codex/hooks.json' if provider == 'codex' else settings_path(provider)
         if config.exists(): hits.append(str(config))
         if hits: evidence[provider] = hits

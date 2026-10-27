@@ -16,6 +16,14 @@ FILES = (
     'scripts/build_bluetooth_app.py', 'scripts/verify_hardware.py',
     'web/index.html', 'web/style.css', 'web/app.js',
 )
+DOCUMENTS = {'README.md': 'docs/CUSTOMER_SETUP.md', 'AGENTS.md': 'docs/CUSTOMER_AGENT.md'}
+
+
+def read_input(root, name):
+    source = root / name
+    if source.is_symlink() or not source.is_file() or root not in source.resolve().parents:
+        raise ValueError('Missing or unsafe release input: ' + name)
+    return source.read_bytes()
 
 
 def build(destination, root=ROOT):
@@ -23,15 +31,14 @@ def build(destination, root=ROOT):
     root, destination = Path(root).resolve(), Path(destination)
     manifest = {}
     content = {}
+    inputs = FILES + tuple(DOCUMENTS.values())
+    if destination.resolve() in {(root/name).resolve() for name in inputs}:
+        raise ValueError('Bundle output must not overwrite a release input')
     for name in FILES:
-        source = root / name
-        if source.is_symlink() or not source.is_file() or root not in source.resolve().parents:
-            raise ValueError('Missing or unsafe release input: ' + name)
-        content[name] = source.read_bytes()
+        content[name] = read_input(root, name)
         manifest[name] = hashlib.sha256(content[name]).hexdigest()
-    guide = (root/'docs/CUSTOMER_SETUP.md').read_bytes()
-    content['README.md'] = guide
-    content['AGENTS.md'] = (root/'docs/CUSTOMER_AGENT.md').read_bytes()
+    for name, source in DOCUMENTS.items():
+        content[name] = read_input(root, source)
     content['DISTRIBUTION.txt'] = (
         'PRIVATE REVIEW CANDIDATE — NOT A CONSUMER RELEASE\n'
         'Contains readable Python implementation. Publication requires owner approval.\n'

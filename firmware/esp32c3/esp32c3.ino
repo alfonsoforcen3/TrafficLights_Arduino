@@ -111,7 +111,6 @@ void report(bool bluetooth) {
   else data["session_count"] = nullptr;
   data["session_count_kind"] = "working";
   data["working_provider_mask"] = bleParser.provider_mask;
-  data["battery_supported"] = false;
   emit(data, bluetooth);
 }
 
@@ -157,7 +156,7 @@ void processByte(clawdy::Protocol& parser, uint8_t byte, bool bluetooth) {
       testActive = false;
       if (mode != command) { mode = command; blinkAt = millis(); blinkOn = true; }
       report(bluetooth);
-    } else if (command == 'Q' || command == 'V') report(bluetooth);
+    } else if (command == 'Q') report(bluetooth);
     else if (command == 'T') { testActive = true; testAt = millis(); report(bluetooth); }
   }
 }

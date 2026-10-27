@@ -363,14 +363,14 @@ h2 {
 .red {
   background: #c66c58;
 }
-.battery {
+.device-status {
   padding: 64px 44px;
   background: #ece7dd;
   display: grid;
   grid-template-columns: 1fr 1.25fr;
   gap: 50px;
 }
-.battery h2 {
+.device-status h2 {
   font-size: 39px;
 }
 .connection {
@@ -394,7 +394,7 @@ h2 {
   max-width: 330px;
   color: #786e61;
 }
-.battery-card {
+.status-card {
   background: var(--paper);
   padding: 28px;
   border: 1px solid #d6cbbb;
@@ -407,32 +407,20 @@ h2 {
   letter-spacing: 1px;
   color: #7c7469;
 }
-.charge {
+.status-heading {
   display: flex;
   align-items: baseline;
   gap: 14px;
   margin: 24px 0 8px;
 }
-.charge strong {
-  font-size: 68px;
+.status-heading strong {
+  font-size: clamp(25px, 4vw, 48px);
   font-weight: 500;
   line-height: 1;
 }
-.charge span {
+.status-heading span {
   font-size: 11px;
   color: #847b6e;
-}
-.meter {
-  height: 6px;
-  border-radius: 8px;
-  background: #e4ddd2;
-  overflow: hidden;
-}
-.meter div {
-  height: 100%;
-  width: 0;
-  background: var(--accent);
-  transition: width 0.6s;
 }
 .readings {
   display: flex;
@@ -445,21 +433,13 @@ h2 {
   font-size: 10px;
   color: #847b6e;
 }
+.readings > div { min-width: 0; }
 .readings b {
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 500;
 }
-.chart {
-  width: 100%;
-  height: 70px;
-  margin-top: 15px;
-}
-.chart path {
-  stroke: var(--accent);
-  stroke-width: 2;
-  fill: none;
-}
-.battery-card p {
+.status-card p {
   font-size: 10px;
   color: #847b6e;
   margin-bottom: 0;
@@ -626,7 +606,7 @@ body.duck .antenna {
   .signals p {
     font-size: 11px;
   }
-  .battery {
+  .device-status {
     padding: 40px 24px;
     grid-template-columns: 1fr;
     gap: 25px;
@@ -653,7 +633,7 @@ body.duck .antenna {
   .actions {
     gap: 16px;
   }
-  .battery-card {
+  .status-card {
     padding: 22px;
   }
   .brand small {

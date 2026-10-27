@@ -1,11 +1,10 @@
 # ESP32-C3 engineering candidate — not a qualified shipping profile
 
-The new `firmware/esp32c3/` source is a private candidate for an explicitly
+The new `firmware/esp32c3/` source is a development candidate for an explicitly
 identified ESP32-C3 production board. It does not replace the tested nRF52840
 firmware. No ESP32-C3 board was connected, compiled with its Arduino toolchain,
-flashed, or physically accepted in this iteration. No GPIO assignment, battery
-charger, power circuit, OLED wiring or vendor-specific “SuperMini” compatibility
-has been inferred.
+flashed, or physically accepted in this iteration. No GPIO assignment, USB power circuit, OLED wiring, or vendor-specific
+“SuperMini” compatibility has been inferred.
 
 ## Standalone LED test accepted on one unit — 26 October 2026
 
@@ -53,12 +52,11 @@ The primary advertisement includes the service; the scan response includes the
 full name. RX accepts write/write-without-response; TX sends newline-delimited
 JSON in at most 20-byte notification fragments.
 
-Legacy commands G/Y/R/B/O, Q, V and T are supported. X restarts only when received
-over local USB serial; BLE X is ignored. V returns the ordinary capability/GPIO
-report with `battery_supported=false`; it makes no voltage, percentage, charging
-or endurance claim. `N<count>\n` and `P<mask>\n` metadata track 0–9999 working
-sessions and provider bits 0–15, without transcripts or session IDs. Metadata is
-cleared on disconnect. There is no OLED renderer in this candidate.
+Commands G/Y/R/B/O, Q and T are supported. X restarts only when received
+over local USB serial; BLE X is ignored. `N<count>\n` and `P<mask>\n` metadata
+track 0–9999 working sessions and provider bits 0–15, without transcripts or
+session IDs. Metadata is cleared on disconnect. There is no OLED renderer in
+this candidate.
 
 Transport queue overflow or an oversized incoming BLE write latches input off
 and requests disconnect of the current peer. The latch, parser and old queue are

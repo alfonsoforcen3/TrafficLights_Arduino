@@ -15,25 +15,27 @@ physical/user action prevents further verification, report that specific limit
 after completing independent work. Never use traffic-light hooks to force model
 continuation or change application permissions; they are status observers only.
 
-Customer onboarding candidate: when asked to set up a powered, pre-flashed
-Clawdy, read docs/CUSTOMER_SETUP.md and use `python3 install.py --onboard` for
+Buyer intent: treat “I bought/have a new Clawdy connected to this machine” as a
+request to configure a powered, pre-flashed unit. “Connected” is not evidence of
+USB data or an established Bluetooth link. Read docs/CUSTOMER_AGENT.md and
+docs/CUSTOMER_SETUP.md, then use `python3 install.py --onboard` for
 Bluetooth discovery and explicit selection; USB discovery is only the legacy
 maintainer path. Do not assume rename support on already-shipped firmware.
 New firmware advertises hardware family, immutable identity and rename capability.
-Keep candidate bundles and website changes private until the owner requests release.
+The owner made this source repository public on 2026-10-27. Public source does
+not qualify unsigned candidate bundles or automatically authorize website deployment.
 No physical customer acceptance has been established by the new hardware-free tests.
 
 Use this workflow when a user asks to install or update this repository. Do not execute installation merely because you opened the repository.
 
 1. Read INSTALL.md, docs/COMPATIBILITY.md, and docs/HARDWARE.md. The physical profile tested here is macOS + a nice!nano-compatible nRF52840 + local Codex/Work. Never claim cross-platform installation or ordinary ChatGPT chat support.
-2. Inspect OS/Python, connected volumes, INFO_UF2.TXT or boot_out.txt, and physical board/wiring information. The original GPIOs are P0.10 green, P1.11 amber, P1.13 red. First clawdy uses P0.09 green (`009` reads `600` upside down); inspect its per-unit profile and never assume P0.06. Port.pin labels are not Arduino D-pin numbers. Soldered electrical connections and resistors are required.
+2. Inspect OS/Python and the selected unit identity. Inspect USB volumes and INFO_UF2.TXT/boot_out.txt only for an explicitly requested factory/DIY/recovery path; customer BLE setup does not require them. For factory work, confirm physical board/wiring information. The original GPIOs are P0.10 green, P1.11 amber, P1.13 red. First clawdy uses P0.09 green (`009` reads `600` upside down); inspect its per-unit profile and never assume P0.06. Port.pin labels are not Arduino D-pin numbers. Soldered electrical connections and resistors are required.
 3. If the board is shipped pre-flashed, skip provisioning and use its printed BLE name. For factory/DIY/recovery units, provision firmware using the documented official download and checksum. Preserve CURRENT.UF2 and existing CircuitPython files. Never flash this UF2 to a board with a different ID. Do not upgrade the bootloader unnecessarily.
 4. Reset the board after boot.py changes. For first BLE setup, keep exactly one provisioned board connected over USB so install.py can discover its own unique name; do not copy the developer's TrafficLight-16DE name.
 5. Preview providers with python3 scripts/provider_setup.py --detect, read docs/PROVIDERS.md, then run python3 install.py (or --providers to restrict selection). It uses ~/.local/share/trafficlights/venv, installs the Mac helper, and preserves unrelated provider hooks/settings. Review changes to ~/.codex/hooks.json. Existing hook definitions may need trust review again when paths change.
 6. Explain required user actions: allow Traffic Light Bridge Bluetooth access in macOS, and review provider-specific hooks/workspace trust (Codex and Claude /hooks, Gemini /hooks panel, Cursor hook output). Never alter trust stores or macOS privacy databases to bypass these actions. Never request passwords in chat; let users authenticate directly in OS dialogs.
 7. Run python3 manage_hooks.py status and python3 scripts/verify_hardware.py. A running TCP listener or open serial device is not proof of physical delivery. Require hardware_connected=true, transport=ble, a ble:// connection, and board GPIO acknowledgements with transport=ble. Ask the user to confirm visible LEDs.
-8. Follow docs/TESTING.md for board reset / power-cycle / Mac restart checks. Tell the user which were actually tested. Do not promise unlimited uptime, instantaneous reconnection, or battery endurance.
-9. Before giving battery wiring, obtain battery voltage/chemistry and board terminal/charger identification. Use docs/BATTERY.md; never apply a battery to a GPIO or guess clone polarity/charging current.
+8. Follow docs/TESTING.md for board reset / power-cycle / Mac restart checks. Tell the user which were actually tested. Do not promise unlimited uptime, instantaneous reconnection, or unmeasured operating endurance.
 
 Updates: use python3 install.py --no-hooks when approved hooks need no changes. Keep the clone at a stable path; moving it changes hook paths. Disable with python3 manage_hooks.py disable; cached packages, backups and board firmware remain intentionally.
 
@@ -58,7 +60,7 @@ flashed; full Bluetooth/provider firmware has NOT been accepted on this ESP32.
 Owner unplugged it after success; do not reconnect it or another unit incidentally.
 Do not confuse this ESP32 with either nRF board or flash a nice_nano UF2 to it.
 
-Virtual Clawdy: desktop/macos is the private native menu-bar prototype; read its
+Virtual Clawdy: desktop/macos is the native menu-bar prototype in public source; read its
 README and docs/VIRTUAL_CLAWDY_ACCEPTANCE.md before building or changing it.
 Use isolated cached builds/tests; do not restart the user's trial incidentally.
 Chat routing IDs are host-only: every renderer snapshot, including startup, must

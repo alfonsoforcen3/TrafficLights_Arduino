@@ -54,7 +54,7 @@ in status hooks`. These are source observations, not live-runtime measurements.
 | `scripts/traffic.py` | Provider normalization and observer-only behavior; stdin has a 0.2 s budget and TCP operations a 0.15 s timeout; no direct USB fallback or prompt logging | Retain bounded failure behavior. A Python process/OS stall can still exceed those internal budgets; do not promise hooks never take time |
 | `scripts/bridge.py` | Namespaced session registry, B/R/Y/G arbitration, 0.8 s input and 1.5 s completion settling, WIP/provider summaries, atomic replacement of persisted JSON | Separate aggregation from hardware startup, add explicit no-hardware mode, typed validation, bounded read-only snapshots and observability |
 | Bridge port 8765 | Existing hook ingress and maintainer controls | It is unauthenticated; `status` contains session IDs and the socket also accepts `hardware_test`, `resume`, `clear` and `shutdown`. Never give this interface to the renderer |
-| `scripts/dashboard.py` | Example of a loopback-only, Host-checked read-only surface | Its API is battery/board oriented, not an AI-status API. Do not derive virtual freshness from battery packets or require this server |
+| `scripts/dashboard.py` | Example of a loopback-only, Host-checked read-only surface | Its API is hardware-oriented, not an AI-status API. Do not derive virtual freshness from device telemetry or require this server |
 | `firmware/nicenano/oled_display.py` | Approved Clawdy proportions, expressions, 72 phrase pairs, five-second rotation and provider artwork | Extract an offline, versioned asset/phrase manifest. Do not import hardware-bound firmware into a desktop process |
 | Runtime hook copy/migration | Durable per-user `traffic.py` path avoids source hydration during hooks | Keep executable code/assets out of cloud-backed Desktop paths; preserve disabled policies and normal trust review on changes |
 | Existing startup | Mac LaunchAgent, Windows per-user Startup launcher | Current startup is not a virtual-app crash supervisor or a signed consumer package |
@@ -454,4 +454,4 @@ of optional physical worker extraction; shared-install lifecycle; and signed
 runtime distribution. This document recommends the hardened three-process
 virtual boundary but does not authorize implementation, purchases, live setup,
 monitoring, commits, push or publication. Existing physical Windows acceptance
-and battery limitations remain unchanged.
+and USB power/hardware limitations remain unchanged.

@@ -14,12 +14,13 @@ document.querySelectorAll("[data-state]").forEach(button => button.addEventListe
   message.replaceChildren(...state.message.split("\n").flatMap((line, index) => index ? [document.createElement("br"), document.createTextNode(line)] : [document.createTextNode(line)]));
   document.querySelector("#demo-detail").textContent = state.detail;
 }));
+const setupRequest = "I bought a new Clawdy and it is powered on near this computer. Set it up for me using https://github.com/alfonsoforcen3/TrafficLights_Arduino. Read AGENTS.md and docs/CUSTOMER_AGENT.md, help me identify and name my toy, configure my installed supported AI apps, and verify the lights. Guide me through normal Bluetooth and app approvals.";
 document.querySelector("#copy-command").addEventListener("click", async () => {
   const feedback = document.querySelector("#copy-feedback");
   try {
-    await navigator.clipboard.writeText("python3 install.py --onboard");
-    feedback.textContent = "Copied. Run from your approved Clawdy folder.";
+    await navigator.clipboard.writeText(setupRequest);
+    feedback.textContent = "Copied. Paste into your local AI assistant with terminal access.";
   } catch {
-    feedback.textContent = "Copy manually: python3 install.py --onboard";
+    feedback.textContent = "Copy this into your local AI: " + setupRequest;
   }
 });

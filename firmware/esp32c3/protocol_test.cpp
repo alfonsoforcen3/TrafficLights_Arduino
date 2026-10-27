@@ -58,7 +58,9 @@ int main(int argc, char** argv) {
     recovery.overflow();
     assert(recovery.take_disconnect_request(true));
   } else if (scenario == "legacy") {
-    for (unsigned char value : std::string("GYRBOQVTXgyrboqvtx")) {
+    assert(parser.feed('V') == P::Event::None);
+    assert(parser.feed('v') == P::Event::None);
+    for (unsigned char value : std::string("GYRBOQTXgyrboqtx")) {
       assert(parser.feed(value) == P::Event::Command);
       assert(parser.command >= 'A' && parser.command <= 'Z');
     }

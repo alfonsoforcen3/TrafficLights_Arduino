@@ -27,7 +27,7 @@ Bluetooth permission belongs to the Mac helper and is separate from hook trust. 
 python3 manage_hooks.py disable
 ```
 
-This removes owned Codex entries and unloads/removes the owned LaunchAgent. It also removes the old project's Gemini traffic-light entry if present; unrelated entries are preserved. Backups, the Python environment, built app and flashed board firmware remain for recovery. Disabling hooks is not a secure erase/uninstall of every file, nor a guaranteed physical power-off; use the battery switch and disconnect USB to power off.
+This removes owned Codex entries and unloads/removes the owned LaunchAgent. It also removes the old project's Gemini traffic-light entry if present; unrelated entries are preserved. Backups, the Python environment, built app and flashed board firmware remain for recovery. Disabling hooks is not a secure erase/uninstall of every file, nor a guaranteed physical power-off; disconnect its USB power source to power off.
 
 Claude Code, Gemini CLI and Cursor adapters now have dedicated schema-aware installers. The old Gemini/Antigravity config/hooks.json example is legacy. See [provider adapters](docs/PROVIDERS.md) for current configuration paths, evidence, access review, and removal. Global disable removes all owned adapters.
 

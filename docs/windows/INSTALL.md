@@ -30,7 +30,7 @@ Require `hardware_connected=true`, `transport=ble`, a `ble://` connection and fi
 
 The owner's Windows installation email reports Windows 11 Enterprise, First Clawdy BLE GPIO R/Y/G/B/O acknowledgements, simulated Gemini hooks, preserved Claude/Gemini configuration and repeated installation. It references branch `codex/windows-support`, commit `3f6ba3e`; neither was retrievable from this repository's remote during integration. This implementation was therefore written and tested separately, rather than merged from that report.
 
-Local macOS hardware-free tests cover regression behavior, OS paths, quoting and Windows startup generation/removal. This implementation still needs native Windows installation, real provider prompts and logout/login acceptance. An existing Startup file does not prove reboot behavior. Battery voltage/percentage and charging remain unverified for this clone; installing Windows support does not add a battery sensor.
+Local macOS hardware-free tests cover regression behavior, OS paths, quoting and Windows startup generation/removal. This implementation still needs native Windows installation, real provider prompts and logout/login acceptance. An existing Startup file does not prove reboot behavior.
 
 ## Pull this firmware/hook iteration
 
