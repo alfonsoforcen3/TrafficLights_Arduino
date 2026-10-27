@@ -8,7 +8,7 @@ This Mac had no bridge listener or enabled login service at baseline. First Claw
 
 ## Implemented changes
 
-- Green uses 5 kHz PWM with default on-duty 32768/65535. Amber/red remain digital at full on-level. The boolean LED interface keeps blink/search/connection animations compatible. `green_brightness` optionally selects a finite value from 0 to 1; reports include PWM duty/frequency. This is electrical duty, not a calibrated light-output or battery-saving claim.
+- Green uses 5 kHz PWM with default on-duty 32768/65535. Amber/red remain digital at full on-level. The boolean LED interface keeps blink/search/connection animations compatible. `green_brightness` optionally selects a finite value from 0 to 1; reports include PWM duty/frequency. This is electrical duty, not a calibrated light-output measurement.
 - A separate `pwm_led.py` is copied before `code.py`. The flasher backs up existing firmware and per-unit configuration. Windows drive-letter discovery and Mac mounted-volume discovery refuse multiple CircuitPython candidates; wrong-board validation still precedes application writes. Bootloader provisioning remains possible before CIRCUITPY exists, unlike the supplied draft's premature missing-drive rejection.
 - Gemini Windows commands use PowerShell's call operator and literal single-quoted paths, escaping embedded apostrophes. Source: [Gemini hook runner](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/hooks/hookRunner.ts) and [shell selection](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/shell-utils.ts), inspected 2026-10-07. Other providers retain their current shell commands. Gemini stays working through tool events and completes at AfterAgent; the redundant BeforeModel adapter was removed.
 - Legacy Gemini handlers are removed only with this project's script/provider evidence; unrelated similarly named hooks remain. Existing hook namespace removal, backups and repeated-install behavior remain covered by tests.
@@ -34,7 +34,7 @@ A temporary existing Mac Bluetooth application was used without reinstalling pro
 
 ## Not run / remaining production gates
 
-Native Windows execution of this revision, real Gemini/Claude dispatch, Windows startup after logout/reboot, clean-machine setup, sleep/wake, physical power cycles and extended runtime were not run here. The owner reports previous Windows success; this does not certify the new hook command or lifecycle behavior. Battery sensing/percentage/charging remain unverified and report null rather than invented values. Signing, consumer packaging and firmware rollback acceptance remain separate work.
+Native Windows execution of this revision, real Gemini/Claude dispatch, Windows startup after logout/reboot, clean-machine setup, sleep/wake, physical power cycles and extended runtime were not run here. The owner reports previous Windows success; this does not certify the new hook command or lifecycle behavior. Signing, consumer packaging and firmware rollback acceptance remain separate work.
 
 ## Windows next steps
 

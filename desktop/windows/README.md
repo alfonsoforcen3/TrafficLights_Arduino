@@ -4,7 +4,7 @@ A first WPF/Win32 tray prototype, targeting .NET 10. This is separate from the
 existing [Windows physical-device companion](../../docs/windows/README.md).
 **Native Windows UI acceptance is pending.** macOS cross-compilation and portable
 checks do not establish Windows focus, DPI, accessibility or Explorer behavior.
-Keep source/bundles private; this is unsigned and is not a customer installer.
+Source is publicly readable; keep unsigned local bundles as tester artifacts; this is unsigned and is not a customer installer.
 
 The app owns one notification-area icon and one Python collector. Default OBS
 reads only the already-running bridge at `127.0.0.1:8765`; it does not start that

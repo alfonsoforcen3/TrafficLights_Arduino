@@ -23,7 +23,7 @@ body:
     id: hardware
     attributes:
       label: Hardware and power
-      description: Board revision, firmware version, and USB or battery power. Omit unique device IDs.
+      description: Board revision, firmware version, and USB power source. Omit unique device IDs.
   - type: textarea
     id: evidence
     attributes:

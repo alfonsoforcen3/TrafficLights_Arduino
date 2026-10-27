@@ -1,4 +1,4 @@
-# Private customer onboarding candidate — 18 October 2026
+# Customer onboarding candidate — 18 October 2026
 
 ## Scope and baseline
 
@@ -8,8 +8,8 @@ They explicitly asked to prepare privately and release later. The working tree
 already contained unrelated OLED phrase changes, a findings draft and generated
 output; these were preserved. The independent mascot checkout was not included.
 
-The source repository is private. Public setup docs offered no installer and the
-live QR landing page still has preview buttons. Existing install.py required a
+At the time of this report, the source repository was private, public setup docs
+offered no installer, and the live QR landing page still had preview buttons. Existing install.py required a
 supplied BLE name or USB discovery. Firmware had no BLE rename protocol.
 
 ## Implemented candidate
@@ -25,10 +25,11 @@ supplied BLE name or USB discovery. Firmware had no BLE rename protocol.
 - Names combine shortened laptop/nickname and final eight ID hex digits. The
   full identity is saved in connection.json and checked before tracked commands.
   Duplicate names fail instead of selecting the first nearby board.
-- Customer ZIP is built by explicit allowlist, with entry hashes and archive
-  checksum. No Git history, factory firmware, CAD, supplier records, logs or
-  customer settings are included. It contains Python source, stays private and
-  does not replace the planned signed/notarized distribution.
+- Local customer candidate ZIP is built by explicit allowlist, with entry hashes
+  and archive checksum. No Git history, factory firmware, CAD, supplier records,
+  logs or customer settings are included. It contains Python source and does not
+  replace a signed/notarized distribution. Local artifacts are not published
+  automatically.
 
 ## Verification and limits
 
@@ -66,7 +67,7 @@ The subprocess EOF test now separates bounded interpreter startup from its
 unchanged two-second handler deadline; the prior failure is recorded in the
 hook reliability report. Archive manifest/checksum, installed-observer equality,
 and extracted offline onboarding passed. Documentation links and whitespace
-checks passed. The private artifact is dist/clawdy-private-candidate.zip; no
+checks passed. The then-built local artifact was dist/clawdy-private-candidate.zip; no
 Git commit or publication was made.
 
 Run the customer enrollment acceptance section in docs/TESTING.md on an assembled
@@ -77,7 +78,7 @@ permissions, hook review/real dispatch, restart and removal/reinstall.
 ESP32-C3 requires its own factory firmware and confirmed GPIO/polarity. Protocol
 recognition in the host is not proof an arbitrary ESP32 board works. Never use
 the nRF52840 UF2 on ESP32 hardware. Physical ESP32 and Windows acceptance remain
-pending. Existing battery/charger limits remain unchanged.
+pending.
 
 ## Publication handoff
 
@@ -85,4 +86,13 @@ After acceptance and owner approval: choose signed binary distribution or approv
 source-containing customer bundle terms; publish a versioned artifact and checksum
 to TrafficLights_Setup; update the existing public user-site `clawd-mascot-3d/`
 installer link; verify anonymous download, clean extraction/install and exact QR
-destination. Keep private source history, keys, logs and factory records private.
+destination. The source repository is now public. Keep signing keys, customer logs/configuration,
+and factory-unit records private.
+
+
+## Owner correction — 27 October 2026
+
+The owner made the source repository public after this report. The historical
+private-source statements above describe the 18 October state only. No signed
+installer or prebuilt customer archive was published by that repository change.
+The product is USB-powered; use the current customer guide for its BLE setup.

@@ -13,7 +13,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 URL = 'https://downloads.circuitpython.org/bin/nice_nano/en_US/adafruit-circuitpython-nice_nano-en_US-8.1.0.uf2'
 SHA256 = '454ad2c9d24a82199fe3f59a977b9c04519c1901021ed639dd4a7ed90de7d3f5'
-FILES = ('boot.py', 'ble_link.py', 'battery.py', 'connection_display.py', 'pwm_led.py', 'provider_icons.py', 'oled_display.py', 'session_count.py', 'code.py')
+FILES = ('boot.py', 'ble_link.py', 'connection_display.py', 'pwm_led.py', 'provider_icons.py', 'oled_display.py', 'session_count.py', 'code.py')
 
 def auto_detect_circuitpy():
     if sys.platform == 'win32':
@@ -69,7 +69,7 @@ def provision(boot_drive, circuitpy=None):
         raise RuntimeError('Expected CircuitPython version did not boot; inspect the preserved backup.')
     if 'nice!nano' not in boot_info and 'nice_nano' not in boot_info:
         raise RuntimeError('CIRCUITPY is not the expected nice!nano board.')
-    for name in (*FILES, 'hardware_config.json', 'battery_config.json'):
+    for name in (*FILES, 'hardware_config.json'):
         if (circuitpy / name).exists():
             shutil.copyfile(circuitpy / name, backup / name)
     # Install dependencies before code.py, which triggers an automatic reload.

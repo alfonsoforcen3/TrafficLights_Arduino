@@ -1,19 +1,47 @@
 # Install and activate Clawdy
 
-This is the authorized maintainer/tester source workflow. The repository is
-private; Git access is required. A signed standalone consumer installer is not
-yet available. Use a stable checkout path: provider hooks point to that path.
+This is the public source workflow for maintainers and testers. A signed
+standalone consumer installer or released customer archive is not available.
+Use a stable checkout path: provider hooks can point to that path.
 
 | Host | Installation / activation | Current evidence |
 | --- | --- | --- |
-| Native macOS | Supported local installer and login helper | BLE hardware, OLED and Codex hook signals verified on the prototype |
-| Native Windows | Implemented local installer and user Startup launcher | This revision needs native BLE, OLED, real-provider and login acceptance |
+| Native macOS | Existing local installer and login helper | BLE hardware, OLED and Codex hook signals verified on the prototype; clean customer onboarding pending |
+| Native Windows | Existing installer and user Startup launcher; onboarding command is a candidate | This revision needs native BLE, OLED, onboarding, real-provider and login acceptance |
 | Linux / WSL | Installer rejects this platform; no supported activation | Hardware-free tests only; see Linux section |
 
-## Before installing
+## New buyer setup through a local AI assistant
 
-1. Power the pre-flashed board and enable Bluetooth on the laptop. Use its exact
-   printed Bluetooth name. `TrafficLight-ABCD` below is a placeholder.
+For a new USB-powered toy, start the onboarding flow from a local checkout in
+Terminal:
+
+```bash
+python3 install.py --onboard
+```
+
+This interactive candidate discovers nearby compatible BLE devices and asks the
+buyer to identify the intended toy and select local app hooks. USB supplies
+power; normal laptop communication is BLE, so no USB data connection is needed.
+The buyer still grants normal OS permissions, reviews provider trust, and
+confirms visible LEDs. Clean-customer onboarding is not yet accepted.
+
+On native Windows the candidate command is `py -3 install.py --onboard`, but
+native Windows onboarding acceptance is pending. Ordinary browser AI chats,
+Linux, and WSL cannot run this local setup flow. See [customer setup](CUSTOMER_SETUP.md)
+and [agent instructions](CUSTOMER_AGENT.md).
+
+For a first-run checkout with no saved connection, `python3 install.py` also
+opens onboarding; `--onboard` enters it explicitly. The agent-oriented workflow
+uses a read-only preflight, advertisement-only discovery and then an explicitly
+selected interactive setup. Preflight and discovery never mark the unit ready.
+See [customer setup](CUSTOMER_SETUP.md) for the JSON fields, safety gates and
+noninteractive rules. The known-name steps below are the maintainer/tester
+install and handoff path, not the first-time buyer workflow.
+
+## Before a maintainer install
+
+1. Power the pre-flashed board over USB and enable Bluetooth on the laptop. Use
+   its exact printed Bluetooth name. `TrafficLight-ABCD` below is a placeholder.
 2. Release any other controlling laptop first with its `manage_hooks.py disable`.
    See [handoff](LAPTOP_HANDOFF.md). Do not run two companions against one unit.
 3. Use native Python 3.9+ with pip/venv, Git, and a local supported AI application.

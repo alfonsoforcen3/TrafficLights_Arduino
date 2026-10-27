@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -29,7 +30,7 @@ class BluetoothWriteTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_hooks_heartbeat_and_metadata_never_overlap(self):
         link = self.link()
         client = link.client = SinglePendingClient()
-        packets = [b'Y', b'N12\n', b'P7\n', b'G', b'V'] * 5
+        packets = [b'Y', b'N12\n', b'P7\n', b'G', b'Q'] * 5
         await asyncio.gather(*(link.write(packet) for packet in packets))
         self.assertEqual(client.writes, [(RX_UUID, packet, True) for packet in packets])
 
@@ -57,6 +58,27 @@ class BluetoothWriteTests(unittest.IsolatedAsyncioTestCase):
             await task
         await link.write(b'Q')
         self.assertEqual(client.writes, [(RX_UUID, b'Q', True)])
+
+    async def test_connection_reports_identity_then_sends_only_count_apps_and_state(self):
+        reports = []
+        link = BluetoothLink('test', lambda: 'Y', reports.append,
+                             get_session_count=lambda: 12, get_provider_mask=lambda: 7)
+        class Client:
+            is_connected = False
+            def __init__(self): self.writes = []; self.disconnects = 0
+            async def connect(self): self.is_connected = True
+            async def start_notify(self, _uuid, callback):
+                callback(None, (json.dumps({'firmware': 'traffic-nicenano-v1', 'transport': 'ble'}) + '\n').encode())
+            async def write_gatt_char(self, _uuid, data, response): self.writes.append(data)
+            async def disconnect(self): self.is_connected = False; self.disconnects += 1
+        client = Client()
+        with patch.object(link, 'discover_device', new=AsyncMock(return_value=SimpleNamespace(address='fixture'))), \
+                patch('scripts.ble_transport.BleakClient', return_value=client), \
+                patch('scripts.ble_transport.asyncio.sleep', new=AsyncMock(side_effect=asyncio.CancelledError)):
+            with self.assertRaises(asyncio.CancelledError): await link.run()
+        self.assertEqual(client.writes, [b'Q', b'N12\n', b'P7\n', b'Y'])
+        self.assertEqual(client.disconnects, 1)
+        self.assertIsNone(reports[-1])
 
 
 class BluetoothDiscoveryTests(unittest.IsolatedAsyncioTestCase):

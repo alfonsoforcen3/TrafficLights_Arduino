@@ -9,7 +9,6 @@ This system is a local activity indicator. It should never store or forward prom
 - Hook commands execute with the local user's privileges. Keep the checkout/runtime in trusted locations; preserve provider trust, disabled-hook preferences and managed policy.
 - Do not patch macOS privacy databases, fabricate hook trust, disable Gatekeeper, or request passwords in chat. Approvals belong in normal app/OS dialogs.
 - The developer alias bundle and unsigned source installation are not a production package. Keep signing keys/credentials outside source, app bundles, firmware and logs.
-- Charging must be verified against the exact board and battery specifications. Software tests do not validate a charger.
 
 ## Reporting
 

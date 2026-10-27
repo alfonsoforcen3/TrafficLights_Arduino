@@ -10,7 +10,7 @@ Corporate policy is a boundary, not a defect to bypass. Do not disable DLP or al
 
 # Windows implementation, installation and findings handoff
 
-Copy this complete prompt into the coding agent on the Windows laptop, after cloning the private repository. This is an implementation assignment, not evidence that Windows support already exists. Read the current code and repository instructions before executing it.
+Copy this complete prompt into the coding agent on the Windows laptop, after cloning the public repository. This is an implementation assignment, not evidence that Windows support already exists. Read the current code and repository instructions before executing it.
 
 ---
 
@@ -25,18 +25,17 @@ Deliver working Windows code and installation on this laptop where possible, rel
 ## 2. Known hardware and current state
 
 - Device name is exactly `first clawdy`, including the lower-case spelling and space. This is the intended target, not the original developer device TrafficLight-16DE.
-- It is a nice!nano-compatible nRF52840 clone. Bootloader identified itself as Board-ID nRF52840-nicenano, version 0.6.0, S140 6.1.1. Bootloader identity does not certify the clone's charger or component revision.
+- It is a nice!nano-compatible nRF52840 clone. Bootloader identified itself as Board-ID nRF52840-nicenano, version 0.6.0, S140 6.1.1. Bootloader identity does not establish the exact USB power-input or component revision.
 - CircuitPython 8.1.0 is already installed. CPU UID was recorded as 8063344647CEF029.
 - Per-unit hardware_config.json on the board selects green P0.09 and BLE name first clawdy. Green's silkscreen is 009; upside down it reads 600. It is NOT P0.06 or Arduino D9. Amber is P1.11 and red P1.13. Each LED has its own series resistor and shares ground.
 - Firmware is already installed and was verified over BLE on macOS. The user confirmed all three LEDs lit, and confirmed the connection animation looked good.
 - While looking for BLE, all LEDs blink together, 0.4 seconds on/off. On connection, red → amber → green repeats twice, 0.16 seconds per step. Firmware then resumes the latest host state. Connection display is nonblocking; it must not turn completed/green merely because it connected.
 - The previous Mac's integration was disabled on 2026-10-06. Owned hooks and login service were removed; the bridge listener and login service were verified absent. Do not assume they remain absent forever: ask the owner to release any competing host if needed. Do not send messages to another chat or alter another computer without user authorization.
 - Power can be external USB. This setup does not require a USB data connection to Windows. Do not reflash, rename, change wiring or reset per-unit configuration merely to perform a laptop handoff.
-- The earlier battery was single-cell 3.7 V / 300 mAh / 1.11 Wh JH702030. Its 25C marking is a discharge rating, not approved charge current. Battery sensing/charging on the clone remain unverified. Do not use live ADC ~0.21 V as actual battery voltage. Do not infer Charging or Full from USB presence, a blue LED, or a red LED being off.
 
 ## 3. Read the repository and establish a baseline
 
-Read AGENTS.md, INSTALL.md, docs/COMPATIBILITY.md, docs/HARDWARE.md, docs/LAPTOP_HANDOFF.md, docs/PROVIDERS.md, docs/TESTING.md and docs/WEBSITE_BATTERY.md. Inspect the current git status, branch, HEAD and remote. Preserve unrelated work and the separate ignored claude-mascot-3d checkout. Use a codex/ branch for implementation unless the user specifically requests another branch. Avoid unrelated package/model changes.
+Read AGENTS.md, INSTALL.md, docs/COMPATIBILITY.md, docs/HARDWARE.md, docs/LAPTOP_HANDOFF.md, docs/PROVIDERS.md, docs/TESTING.md. Inspect the current git status, branch, HEAD and remote. Preserve unrelated work and the separate ignored claude-mascot-3d checkout. Use a codex/ branch for implementation unless the user specifically requests another branch. Avoid unrelated package/model changes.
 
 The current install.py selects native macOS or Windows and includes a Windows
 startup implementation. Native Windows BLE and real-provider acceptance for
@@ -96,7 +95,7 @@ Verify these from current firmware, not just this prompt. Scan by the exact conf
 
 Start notifications, reconstruct fragmented newline JSON reports, validate the expected firmware identifier, and retain current connection/transport/error evidence. Preserve bounded scan/connect/write/disconnect operations, recovery/backoff and shutdown. A malformed notification must not kill the companion; an ACK from the wrong device must not qualify success.
 
-Commands are G, Y, R, B, O; Q reports GPIO state; V samples battery telemetry without changing the lights. USB-only X resets the board and must not become a BLE reset endpoint. T is an explicit firmware light test; it must not be used as a fake error or silent acceptance proof.
+Light commands are G, Y, R, B and O; Q reports GPIO state. USB-only X resets the board and must not become a BLE reset endpoint. T is an explicit firmware light test; it must not be used as a fake error or silent acceptance proof.
 
 Report fields include firmware, mode, green_pin, actual GPIO keys, transport, ble_name and display_phase. First Clawdy should report P0.09, P1.11 and P1.13. During searching/connected_show the output lights intentionally differ from tracked mode; wait for tracking before asserting ordinary colours. Reconnect must send the latest host aggregate and restore notification delivery. Merely establishing a BLE connection without current GPIO acknowledgements fails acceptance.
 
@@ -130,10 +129,10 @@ For each test record expected result, actual result, transport evidence, human o
 4. Red, amber, green, blinking red and off acknowledgements over BLE, followed by normal tracking restoration and visible confirmation.
 5. Searching blink and connection sequence, verified by both reports and user observation; latest working state resumes after connection, not a false green.
 6. Real installed-provider prompt, finish, supported input/approval and error; two simultaneous chats, then mixed providers if available.
-7. Board unplug/replug using external USB power. Perform approved battery-only tests only where harness/battery suitability is established. Record ten cycles if practical, including each timing/failure. A software reset is not a physical power-cycle test.
+7. Board unplug/replug using external USB power. Record ten cycles if practical, including each timing/failure. A software reset is not a physical power-cycle test.
 8. Helper restart, Windows user logout/login, Windows reboot, Bluetooth off/on and laptop sleep/wake as separate tests. State persistence and automatic reconnect are required outcomes to verify, not claims to assume.
 9. Board absent during startup; stale BLE address; lost notify subscription; interrupted write; malformed/fragmented report; rapid reconnects; duplicate helper; occupied ports. Verify recovery, bounded logs and actionable diagnostics.
-10. Read-only dashboard data, disconnect/stale behaviour, hostile Host/route requests and no private data disclosure. Do not fabricate battery percent/charge status to make the UI look complete.
+10. Read-only dashboard data, disconnect/stale behaviour, hostile Host/route requests and no private data disclosure.
 11. Full release: helper stopped, startup absent/disabled, owned hooks removed, listener absent, BLE released; unrelated settings remain. Re-enable and rerun relevant acceptance.
 12. Confirm Mac regressions remain covered. Add a Windows CI job for meaningful hardware-free tests once they are portable. Passing CI does not replace physical Windows BLE/provider tests.
 
@@ -155,7 +154,7 @@ Keep raw logs/screenshots locally in .backups/windows/ (ignored). Sanitize befor
 
 Update INSTALL.md, docs/COMPATIBILITY.md, docs/PROVIDERS.md, docs/TESTING.md, docs/LAPTOP_HANDOFF.md, AGENTS.md and CHANGELOG.md to match implementation and evidence. Create a Windows installation/troubleshooting guide with actual tested commands, prerequisites, startup/release/rollback steps, required user permissions and known limitations. Do not remove Mac installation instructions or mark all providers verified based on one adapter.
 
-Record exact firmware/host source commits used during tests. Windows support is initially 'implementation in progress' and becomes 'verified on <tested Windows profile>' only after native BLE delivery and real provider acceptance. Packaging/signing, clean-machine customer installation and battery qualification are separate gates.
+Record exact firmware/host source commits used during tests. Windows support is initially 'implementation in progress' and becomes 'verified on <tested Windows profile>' only after native BLE delivery and real provider acceptance. Packaging/signing, clean-machine customer installation and USB power qualification are separate gates.
 
 ## 13. Commit, push and handoff
 
