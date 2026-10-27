@@ -231,7 +231,7 @@ class CustomerIntentTests(unittest.TestCase):
         home_after = {str(path.relative_to(home)): path.read_bytes() for path in home.rglob('*') if path.is_file()}
         self.assertEqual(home_before, home_after, 'Offline commands must not create a user runtime or hook settings')
         for document in checkout.rglob('*.md'):
-            for target in re.findall(r'\]\(([^)]+)\)', document.read_text()):
+            for target in re.findall(r'\]\(([^)]+)\)', document.read_text(encoding='utf-8')):
                 target = target.strip('<>').split('#', 1)[0]
                 if not target or re.match(r'^[a-zA-Z]+:', target):
                     continue
